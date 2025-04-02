@@ -1,6 +1,5 @@
 import fs from 'fs';
 import { initializeConfig, Config } from '../config/config';
-import { convertWithAST } from '../ast-transformations/run-ast-transformations';
 import { getReactCompDom } from '../enzyme-helper/get-dom-enzyme';
 import {
     generateInitialPrompt,
@@ -89,13 +88,7 @@ export const convertTestFiles = async ({
             continue;
         }
 
-        // Get AST conversion
-        const astConvertedCode = convertWithAST({
-            filePath,
-            testId: config.testId,
-            astTransformedFilePath: config.astTranformedFilePath,
-        });
-
+        // Need to look how enzyme tests return the dom. Assuming they will not be full DOM compared to RTL.
         // Get React Component DOM tree for each test case
         const reactCompDom = await getReactCompDom({
             filePath,
@@ -111,11 +104,41 @@ export const convertTestFiles = async ({
         const initialPrompt = generateInitialPrompt({
             filePath,
             getByTestIdAttribute: config.testId,
-            astCodemodOutput: astConvertedCode,
             renderedCompCode: reactCompDom,
             originalTestCaseNum: config.originalTestCaseNum,
             extendPrompt: extendInitialPrompt,
         });
+
+        // For testing purposes, log the initial prompt to a file and exit early
+        const promptLogPath = `${config.fileConversionFolder}/initial-prompt-${config.filePathTitle}.md`;
+        fs.writeFileSync(promptLogPath, initialPrompt, 'utf-8');
+        console.log(`Initial prompt has been logged to: ${promptLogPath}`);
+        
+        // Create a minimal summary to return that matches the SummaryJson interface
+        const cleanFilePath = `${filePath.replace(/[<>:"/|?*.]+/g, '-')}`;
+        const testResults: TestResults = {
+            [cleanFilePath]: {
+                attempt1: {
+                    testPass: null,
+                    failedTests: 0,
+                    passedTests: 0,
+                    totalTests: config.originalTestCaseNum,
+                    successRate: 0
+                },
+                attempt2: {
+                    testPass: null,
+                    failedTests: 0,
+                    passedTests: 0,
+                    totalTests: 0,
+                    successRate: 0
+                }
+            }
+        };
+        
+        // Generate proper summary JSON using the existing utility function
+        const minimalSummary = generateSummaryJson(testResults);
+        
+        return minimalSummary;
 
         // Call the API with a custom LLM method
         const LLMresponseAttmp1 = await llmCallFunction(initialPrompt);

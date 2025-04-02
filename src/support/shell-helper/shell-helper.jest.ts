@@ -17,9 +17,8 @@ describe('runCommand Integration Test', () => {
 
         expect(result.command).toBe(command);
         expect(result.output).toBe('');
-        expect(result.stderr).toBe(
-            "ls: cannot access 'non_existing_directory': No such file or directory\n",
-        );
+        // Different OS may have different error message formats
+        expect(result.stderr).toContain('non_existing_directory');
     });
 
     it('should kill the process if it runs longer than the allowed time', async () => {

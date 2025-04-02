@@ -8,7 +8,6 @@ export {
 export { initializeConfig } from './support/config/config';
 
 // Export running individual methods directly
-export { convertWithAST } from './support/ast-transformations/run-ast-transformations';
 export { getReactCompDom } from './support/enzyme-helper/get-dom-enzyme';
 export {
     generateInitialPrompt,

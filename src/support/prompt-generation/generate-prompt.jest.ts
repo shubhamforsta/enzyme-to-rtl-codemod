@@ -8,7 +8,7 @@ describe('generate initial prompt', () => {
     const enzymeFilePath =
         'src/support/prompt-generation/utils/test-data/gen-prompt-test-file.jest.tsx';
     const mockGetByTestIdAttribute = 'data-testid';
-    const mockAstCodemodOutput = '<codemod>Partially converted code</codemod>';
+    // AST transformation removed
     const mockRenderedCompCode = '<component>Rendered component</component>';
     const originalTestCaseNum = 4;
 
@@ -16,16 +16,15 @@ describe('generate initial prompt', () => {
         const expectedPrompt = `
       I need assistance converting an Enzyme test case to the React Testing Library framework.
       I will provide you with the Enzyme test file code inside <enzyme_test_code></enzyme_test_code> tags.
-      I will also give you the partially converted test file code inside <codemod></codemod> tags.
       The rendered component DOM tree for each test case will be provided in <component></component> tags with this structure for one or more test cases "<test_case_title></test_case_title> and <dom_tree></dom_tree>"
       Please perform the following tasks:
-      1. Complete the conversion for the test file within <codemod></codemod> tags.
+      1. Transform the Enzyme test file into a React Testing Library test file wrapped in <enzyme_test_code></enzyme_test_code> tags.
       2. Convert all test cases and ensure the same number of tests in the file. In the original file there are 4 test cases.
       3. Replace Enzyme methods with the equivalent React Testing Library methods.
       4. Update Enzyme imports to React Testing Library imports.
       5. Adjust Jest matchers for React Testing Library.
       6. Return the entire file with all converted test cases, enclosed in <rtl_test_code></rtl_test_code> tags.
-      7. Do not modify anything else, including imports for React components and helpers.
+      7. Do not modify anything else, until unless it is required.
       8. Preserve all abstracted functions as they are and use them in the converted file.
       9. Maintain the original organization and naming of describe and it blocks.
       Ensure that all conditions are met. The converted file should be runnable by Jest without any manual changes.
@@ -46,7 +45,6 @@ describe('generate initial prompt', () => {
     test.each([4, 5, 6])('test case 4', (num) => {});
 });
       </enzyme_test_code>
-      Partially converted test file code: <codemod><codemod>Partially converted code</codemod></codemod>
       Rendered component DOM tree: <component><component>Rendered component</component></component>`
             .replace(/\s+/g, ' ')
             .trim();
@@ -54,7 +52,6 @@ describe('generate initial prompt', () => {
         const result = generateInitialPrompt({
             filePath: enzymeFilePath,
             getByTestIdAttribute: mockGetByTestIdAttribute,
-            astCodemodOutput: mockAstCodemodOutput,
             renderedCompCode: mockRenderedCompCode,
             originalTestCaseNum,
         });
@@ -77,7 +74,6 @@ describe('generate initial prompt', () => {
         const result = generateInitialPrompt({
             filePath: enzymeFilePath,
             getByTestIdAttribute: mockGetByTestIdAttribute,
-            astCodemodOutput: mockAstCodemodOutput,
             renderedCompCode: mockRenderedCompCode,
             originalTestCaseNum: 4,
             extendPrompt,

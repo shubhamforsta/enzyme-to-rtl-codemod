@@ -12,7 +12,6 @@ export const promptLogger = createCustomLogger('Prompt');
  * @param {Object} params - The parameters for the function.
  * @param {string} params.filePath - The path to the Enzyme test file.
  * @param {string} params.getByTestIdAttribute - The configured attribute for screen.getByTestId queries.
- * @param {string} params.astCodemodOutput - The output from the AST codemod transformation.
  * @param {string} params.renderedCompCode - The rendered component DOM tree code.
  * @param {number} params.originalTestCaseNum - The number of test cases in the original file.
  * @param {string[]} [params.extendPrompt] - Optional user-provided additional instructions for the prompt.
@@ -21,14 +20,12 @@ export const promptLogger = createCustomLogger('Prompt');
 export const generateInitialPrompt = ({
     filePath,
     getByTestIdAttribute,
-    astCodemodOutput,
     renderedCompCode,
     originalTestCaseNum,
     extendPrompt,
 }: {
     filePath: string;
     getByTestIdAttribute: string;
-    astCodemodOutput: string;
     renderedCompCode: string;
     originalTestCaseNum: number;
     extendPrompt?: string[];
@@ -45,17 +42,16 @@ export const generateInitialPrompt = ({
 
     const contextSetting = `I need assistance converting an Enzyme test case to the React Testing Library framework.
 	I will provide you with the Enzyme test file code inside <enzyme_test_code></enzyme_test_code> tags.
-	I will also give you the partially converted test file code inside <codemod></codemod> tags.
 	The rendered component DOM tree for each test case will be provided in <component></component> tags with this structure for one or more test cases "<test_case_title></test_case_title> and <dom_tree></dom_tree>"`;
 
     const mainRequest = `\nPlease perform the following tasks:
-	1. Complete the conversion for the test file within <codemod></codemod> tags.
+	1. Transform the Enzyme test file into a React Testing Library test file wrapped in <enzyme_test_code></enzyme_test_code> tags.
 	2. Convert all test cases and ensure the same number of tests in the file. ${numTestCasesString}
 	3. Replace Enzyme methods with the equivalent React Testing Library methods.
 	4. Update Enzyme imports to React Testing Library imports.
 	5. Adjust Jest matchers for React Testing Library.
 	6. Return the entire file with all converted test cases, enclosed in <rtl_test_code></rtl_test_code> tags.
-	7. Do not modify anything else, including imports for React components and helpers.
+	7. Do not modify anything else, until unless it is required.
 	8. Preserve all abstracted functions as they are and use them in the converted file.
 	9. Maintain the original organization and naming of describe and it blocks.
 	Ensure that all conditions are met. The converted file should be runnable by Jest without any manual changes.`;
@@ -86,9 +82,6 @@ export const generateInitialPrompt = ({
     const testFileCode = fs.readFileSync(filePath, 'utf-8');
     const testCaseCodePrompt = `\nEnzyme test case code: <enzyme_test_code>${testFileCode}</enzyme_test_code>`;
 
-    // AST converted test case code
-    const convertedCodemodPrompt = `\nPartially converted test file code: <codemod>${astCodemodOutput}</codemod>`;
-
     // Rendered component prompt
     const renderedCompCodePrompt = `\nRendered component DOM tree: <component>${renderedCompCode}</component>`;
 
@@ -99,7 +92,6 @@ export const generateInitialPrompt = ({
         extendedPromptSection +
         conclusion +
         testCaseCodePrompt +
-        convertedCodemodPrompt +
         renderedCompCodePrompt;
 
     promptLogger.info('Done: generating prompt');
