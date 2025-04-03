@@ -26,7 +26,6 @@ export interface Config {
     // Per test file
     filePathTitle: string;
     filePathExtension: string;
-    fileConversionFolder: string;
     astTranformedFilePath: string;
     collectedDomTreeFilePath: string;
     originalTestCaseNum: number;
@@ -48,7 +47,6 @@ const config: Config = {} as Config;
 
 interface InitializeSharedConfigArgs {
     jestBinaryPath: string;
-    outputResultsPath: string;
     logLevel: LogLevel;
     testId: string;
 }
@@ -57,20 +55,16 @@ interface InitializeSharedConfigArgs {
  * Initialize shared config
  * @param {Object} options
  * @param {string} options.jestBinaryPath - The path to the Jest binary.
- * @param {string} options.outputResultsPath - The path where the test results
  * @param {string} options.logLevel - The logging level for the test execution.
  * @param {string} options.testId - getByTestAttribute
  *
  */
 export const initializeSharedConfig = ({
     jestBinaryPath,
-    outputResultsPath,
     logLevel,
     testId,
 }: InitializeSharedConfigArgs): void => {
     config.jestBinaryPath = jestBinaryPath;
-    config.outputResultsPath = setOutputResultsPath(outputResultsPath);
-    config.jsonSummaryPath = `${config.outputResultsPath}/summary.json`;
     config.logLevel = logLevel;
     // Set log level
     configureLogLevel(config.logLevel);
@@ -88,7 +82,6 @@ export const initializeSharedConfig = ({
 interface InitializeConfigArgs {
     filePath: string;
     jestBinaryPath: string;
-    outputResultsPath: string;
     testId?: string;
     logLevel?: LogLevel;
 }
@@ -103,7 +96,6 @@ interface InitializeConfigArgs {
  * @param {Object} params
  * @param {string} params.filePath - The path to the test file being processed.
  * @param {string} params.jestBinaryPath - The path to the Jest binary that can run one test file
- * @param {string} params.outputResultsPath - The path for the results
  * @param {string} params.testId - getByTestAttribute
  * @param {string} [params.logLevel='info'] - The logging level 'info' or 'verbose'
  *
@@ -113,7 +105,6 @@ interface InitializeConfigArgs {
  * const config = initializeConfig({
  *   filePath: 'tests/example.jest.tsx',
  *   jestBinaryPath: 'npm run test',
- *   outputResultsPath: 'temp',
  *   testId: 'data-test',
  *   logLevel: 'verbose',
  * });
@@ -121,7 +112,6 @@ interface InitializeConfigArgs {
 export const initializeConfig = ({
     filePath,
     jestBinaryPath,
-    outputResultsPath,
     testId = 'data-testid',
     logLevel = 'info',
 }: InitializeConfigArgs): Config => {
@@ -129,7 +119,6 @@ export const initializeConfig = ({
     if (!config.configInitialized) {
         initializeSharedConfig({
             jestBinaryPath,
-            outputResultsPath,
             logLevel,
             testId,
         });
@@ -141,7 +130,6 @@ export const initializeConfig = ({
     // Count number of test cases
     configLogger.info('Starting conversion from Enzyme to RTL');
     configLogger.info(`Jest binary path: ${config.jestBinaryPath}`);
-    configLogger.info(`Results folder path: ${config.outputResultsPath}`);
     configLogger.info(`Enzyme file path to convert: ${filePath}`);
     configLogger.info(
         `Number of test cases in file: ${config.originalTestCaseNum}`,
@@ -151,31 +139,39 @@ export const initializeConfig = ({
 };
 
 /**
+ * Extracts the folder path containing the file
+ * @param filePath
+ */
+const extractFolderPathContainingFile = (filePath: string): string => {
+    const folderPath = filePath.split('/').slice(0, -1).join('/');
+    return folderPath;
+};
+
+/**
  * Initialize config for each file conversion
  * @param filePath
  */
 const initializePerFileConfig = (filePath: string): void => {
     // Common
+    config.outputResultsPath = extractFolderPathContainingFile(filePath);
+    config.jsonSummaryPath = `${config.outputResultsPath}/summary.json`;
     const { fileTitle, fileExtension } = extractFileDetails(filePath);
     config.filePathTitle = fileTitle;
     config.filePathExtension = fileExtension;
-    config.fileConversionFolder = createFileConversionFolder(
-        config.filePathTitle + config.filePathExtension,
-    );
-    config.astTranformedFilePath = `${config.fileConversionFolder}/ast-transformed-${config.filePathTitle}${config.filePathExtension}`;
-    config.collectedDomTreeFilePath = `${config.fileConversionFolder}/dom-tree-${config.filePathTitle}.csv`;
+    config.astTranformedFilePath = `${config.outputResultsPath}/ast-transformed-${config.filePathTitle}${config.filePathExtension}`;
+    config.collectedDomTreeFilePath = `${config.outputResultsPath}/dom-tree-${config.filePathTitle}.csv`;
     config.originalTestCaseNum = countTestCases(filePath);
-    config.filePathWithEnzymeAdapter = `${config.fileConversionFolder}/enzyme-mount-overwritten-${config.filePathTitle}${config.filePathExtension}`;
-    config.enzymeMountAdapterFilePath = `${config.fileConversionFolder}/enzyme-mount-adapter.js`;
+    config.filePathWithEnzymeAdapter = `${config.outputResultsPath}/enzyme-mount-overwritten-${config.filePathTitle}${config.filePathExtension}`;
+    config.enzymeMountAdapterFilePath = `${config.outputResultsPath}/enzyme-mount-adapter.js`;
     config.enzymeImportsPresent = checkIfEnzyme(filePath);
 
     // Attempt 1
-    config.rtlConvertedFilePathAttmp1 = `${config.fileConversionFolder}/attmp-1-rtl-converted-${config.filePathTitle}${config.filePathExtension}`;
-    config.jestRunLogsFilePathAttmp1 = `${config.fileConversionFolder}/attmp-1-jest-run-logs-${config.filePathTitle}.md`;
+    config.rtlConvertedFilePathAttmp1 = `${config.outputResultsPath}/attmp-1-rtl-converted-${config.filePathTitle}${config.filePathExtension}`;
+    config.jestRunLogsFilePathAttmp1 = `${config.outputResultsPath}/attmp-1-jest-run-logs-${config.filePathTitle}.md`;
 
     // Attempt 2
-    config.rtlConvertedFilePathAttmp2 = `${config.fileConversionFolder}/attmp-2-rtl-converted-${config.filePathTitle}${config.filePathExtension}`;
-    config.jestRunLogsFilePathAttmp2 = `${config.fileConversionFolder}/attmp-2-jest-run-logs-${config.filePathTitle}.md`;
+    config.rtlConvertedFilePathAttmp2 = `${config.outputResultsPath}/attmp-2-rtl-converted-${config.filePathTitle}${config.filePathExtension}`;
+    config.jestRunLogsFilePathAttmp2 = `${config.outputResultsPath}/attmp-2-jest-run-logs-${config.filePathTitle}.md`;
 
     // Check per file config
     checkPerFileConfig(filePath);
@@ -194,15 +190,12 @@ export const configureLogLevel = (logLevel: LogLevel): void => {
 };
 
 /**
- * Create timestamped results folder
+ * Sets resolved output results path
  * @param outputResultsPath
  */
 export const setOutputResultsPath = (outputResultsPath: string): string => {
     const hostProjectRoot = process.cwd();
-    const now = new Date();
-    const timeStamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}`;
-    const pathWithTimestamp = `${outputResultsPath}/${timeStamp}`;
-    const resolvedPath = path.resolve(hostProjectRoot, pathWithTimestamp);
+    const resolvedPath = path.resolve(hostProjectRoot, outputResultsPath);
     configLogger.info(`Set output results path to "${resolvedPath}"`);
     return resolvedPath;
 };
@@ -324,27 +317,6 @@ export const checkSharedConfig = (): void => {
 
     configLogger.verbose('Check if enzyme exists and can be resolved');
     checkDependency('enzyme');
-
-    // Ensure the output directory exists or create it
-    configLogger.verbose('Check if output results path exists');
-    try {
-        if (!fs.existsSync(config.outputResultsPath)) {
-            configLogger.verbose(
-                `Output results path does not exist. Creating directory: ${config.outputResultsPath}`,
-            );
-            fs.mkdirSync(config.outputResultsPath, { recursive: true });
-            configLogger.info(`Directory created: ${config.outputResultsPath}`);
-        } else {
-            configLogger.info('Output results path exists.');
-        }
-    } catch (error) {
-        configLogger.error(
-            `Failed to create output results path: ${config.outputResultsPath}\nError: ${error}`,
-        );
-        throw new Error(
-            `Failed to create output results path: ${config.outputResultsPath}\nError: ${error}`,
-        );
-    }
 };
 
 /**
@@ -361,10 +333,10 @@ export const checkPerFileConfig = (filePath: string): void => {
         }
     }
 
-    // Check if file conversion folder exists
-    if (!fs.existsSync(config.fileConversionFolder)) {
-        configLogger.error('Results folder for conversions does not exist');
-        throw new Error('Results folder for conversions does not exist');
+    // Check if output results path exists
+    if (!fs.existsSync(config.outputResultsPath)) {
+        configLogger.error('Output results path does not exist');
+        throw new Error('Output results path does not exist');
     }
 };
 

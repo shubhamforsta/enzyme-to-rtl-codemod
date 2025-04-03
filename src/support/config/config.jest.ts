@@ -29,7 +29,6 @@ describe('Configuration Functions', () => {
             const mockArgs = {
                 filePath: 'some/path/to/file.test.tsx',
                 jestBinaryPath: 'path/to/jest',
-                outputResultsPath: 'path/to/results',
                 testId: 'data-test-id',
                 logLevel: 'verbose',
             };
@@ -43,21 +42,16 @@ describe('Configuration Functions', () => {
             // Pass the verification for the Enzyme file
             jest.spyOn(fs, 'existsSync').mockReturnValue(true);
 
-            // Mock outputResultsPath path resolve
-            (path.resolve as jest.Mock).mockReturnValue(
-                mockArgs.outputResultsPath,
-            );
-
             // Call the function to initialize the config
             const resultConfig = initializeConfig(mockArgs);
 
             // Assertions for shared config
             expect(resultConfig.jestBinaryPath).toBe(mockArgs.jestBinaryPath);
             expect(resultConfig.outputResultsPath).toBe(
-                mockArgs.outputResultsPath,
+                'some/path/to',
             );
             expect(resultConfig.jsonSummaryPath).toContain(
-                `${mockArgs.outputResultsPath}/summary.json`,
+                `${resultConfig.outputResultsPath}/summary.json`,
             );
             expect(resultConfig.logLevel).toBe(mockArgs.logLevel);
             expect(resultConfig.testId).toBe(mockArgs.testId);
@@ -67,36 +61,33 @@ describe('Configuration Functions', () => {
             // Assertions for per test file config
             expect(resultConfig.filePathTitle).toBe('file');
             expect(resultConfig.filePathExtension).toBe('.test.tsx');
-            expect(resultConfig.fileConversionFolder).toBe(
-                `${mockArgs.outputResultsPath}/file-test-tsx`,
-            );
             expect(resultConfig.astTranformedFilePath).toBe(
-                `${resultConfig.fileConversionFolder}/ast-transformed-file.test.tsx`,
+                `${resultConfig.outputResultsPath}/ast-transformed-file.test.tsx`,
             );
             expect(resultConfig.collectedDomTreeFilePath).toBe(
-                `${resultConfig.fileConversionFolder}/dom-tree-file.csv`,
+                `${resultConfig.outputResultsPath}/dom-tree-file.csv`,
             );
             expect(resultConfig.originalTestCaseNum).toBe(2);
             expect(resultConfig.filePathWithEnzymeAdapter).toBe(
-                `${resultConfig.fileConversionFolder}/enzyme-mount-overwritten-file.test.tsx`,
+                `${resultConfig.outputResultsPath}/enzyme-mount-overwritten-file.test.tsx`,
             );
             expect(resultConfig.enzymeMountAdapterFilePath).toBe(
-                `${resultConfig.fileConversionFolder}/enzyme-mount-adapter.js`,
+                `${resultConfig.outputResultsPath}/enzyme-mount-adapter.js`,
             );
             expect(resultConfig.enzymeImportsPresent).toBe(false);
 
             // Assertions for attempt paths
             expect(resultConfig.rtlConvertedFilePathAttmp1).toContain(
-                `${resultConfig.fileConversionFolder}/attmp-1-rtl-converted-file.test.tsx`,
+                `${resultConfig.outputResultsPath}/attmp-1-rtl-converted-file.test.tsx`,
             );
             expect(resultConfig.jestRunLogsFilePathAttmp1).toContain(
-                `${resultConfig.fileConversionFolder}/attmp-1-jest-run-logs-file.md`,
+                `${resultConfig.outputResultsPath}/attmp-1-jest-run-logs-file.md`,
             );
             expect(resultConfig.rtlConvertedFilePathAttmp2).toContain(
-                `${resultConfig.fileConversionFolder}/attmp-2-rtl-converted-file.test.tsx`,
+                `${resultConfig.outputResultsPath}/attmp-2-rtl-converted-file.test.tsx`,
             );
             expect(resultConfig.jestRunLogsFilePathAttmp2).toContain(
-                `${resultConfig.fileConversionFolder}/attmp-2-jest-run-logs-file.md`,
+                `${resultConfig.outputResultsPath}/attmp-2-jest-run-logs-file.md`,
             );
             // Reset the config object after the test
             (Object.keys(resultConfig) as Array<keyof Config>).forEach(
@@ -147,36 +138,6 @@ describe('Configuration Functions', () => {
         });
     });
 
-    describe('createFileConversionFolder', () => {
-        it('should create the folder and return the correct path', () => {
-            const filePath = 'file.jest.tsx';
-
-            const expectedFolderPath = 'undefined/file-jest-tsx';
-            const mkdirSyncSpy = jest.spyOn(fs, 'mkdirSync');
-
-            const result = createFileConversionFolder(filePath);
-
-            expect(result).toBe(expectedFolderPath);
-            expect(mkdirSyncSpy).toHaveBeenCalledWith(expectedFolderPath, {
-                recursive: true,
-            });
-        });
-
-        it('should sanitize the folder name by replacing invalid characters', () => {
-            const filePath = 'file<name>.jest.tsx';
-
-            const expectedFolderPath = 'undefined/file-name-jest-tsx';
-            const mkdirSyncSpy = jest.spyOn(fs, 'mkdirSync');
-
-            const result = createFileConversionFolder(filePath);
-
-            expect(result).toBe(expectedFolderPath);
-            expect(mkdirSyncSpy).toHaveBeenCalledWith(expectedFolderPath, {
-                recursive: true,
-            });
-        });
-    });
-
     describe('getReactVersion', () => {
         it('should return the correct major version when React is in dependencies', () => {
             const mockPackageJson = JSON.stringify({
@@ -219,25 +180,6 @@ describe('Configuration Functions', () => {
         });
     });
 
-    describe('checkSharedConfig', () => {
-        it('should create the output directory if it does not exist', () => {
-            (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
-
-            checkSharedConfig();
-            expect(fs.mkdirSync).toHaveBeenCalledWith(undefined, {
-                recursive: true,
-            });
-        });
-
-        it('should log and skip directory creation if it exists', () => {
-            (fs.existsSync as jest.Mock).mockReturnValueOnce(true);
-
-            const spyInfo = jest.spyOn(configLogger, 'info');
-            checkSharedConfig();
-            expect(spyInfo).toHaveBeenCalledWith('Output results path exists.');
-        });
-    });
-
     describe('checkPerFileConfig', () => {
         it('should throw an error if the test file does not exist', () => {
             (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
@@ -247,12 +189,12 @@ describe('Configuration Functions', () => {
             );
         });
 
-        it('should throw an error if the file conversion folder does not exist', () => {
+        it('should throw an error if the output results path does not exist', () => {
             (fs.existsSync as jest.Mock).mockReturnValueOnce(true);
             (fs.existsSync as jest.Mock).mockReturnValueOnce(false);
 
             expect(() => checkPerFileConfig('some/file')).toThrow(
-                'Results folder for conversions does not exist',
+                'Output results path does not exist',
             );
         });
     });

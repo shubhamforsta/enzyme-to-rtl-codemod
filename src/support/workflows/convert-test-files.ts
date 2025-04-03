@@ -36,7 +36,6 @@ export interface TestResults {
  * @param {string[]} params.filePaths - The array of test file paths to be processed.
  * @param {string} [params.logLevel] - Optional log level to control verbosity of logs. 'info' or 'verbose'
  * @param {string} params.jestBinaryPath - Path to the Jest binary for running tests.
- * @param {string} params.outputResultsPath - The directory where output results should be stored.
  * @param {string} params.testId - Optional identifier getByTestId(testId) queries.
  * @param {LLMCallFunction} params.llmCallFunction - Function for making LLM API calls to process the tests.
  * @param {string[]} [params.extendInitialPrompt] - Optional array of additional instructions for the initial LLM prompt.
@@ -48,7 +47,6 @@ export const convertTestFiles = async ({
     filePaths,
     logLevel,
     jestBinaryPath,
-    outputResultsPath,
     testId = 'data-testid',
     llmCallFunction,
     extendInitialPrompt,
@@ -58,7 +56,6 @@ export const convertTestFiles = async ({
     filePaths?: string[];
     logLevel?: string;
     jestBinaryPath: string;
-    outputResultsPath: string;
     testId?: string;
     llmCallFunction: LLMCallFunction;
     extendInitialPrompt?: string[];
@@ -76,14 +73,13 @@ export const convertTestFiles = async ({
         filePaths = await discoverTestFiles(projectRoot, logLevel);        
     }
 
-    for (const filePath of filePaths) {
+    for (const filePath of filePaths.slice(0, 1)) {
         try {
             // Initialize config
             config = initializeConfig({
                 filePath,
                 logLevel,
                 jestBinaryPath,
-                outputResultsPath,
                 testId,
             });
         } catch (error) {

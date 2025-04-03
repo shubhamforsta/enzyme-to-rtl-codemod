@@ -100,6 +100,25 @@ export const getReactCompDom = async ({
         );
     }
 
+    // Clean up temporary files
+    try {
+        getDomEnzymeLogger.verbose('Cleaning up temporary files');
+        if (fs.existsSync(filePathWithEnzymeAdapter)) {
+            fs.unlinkSync(filePathWithEnzymeAdapter);
+            getDomEnzymeLogger.verbose(`Deleted temporary file: ${filePathWithEnzymeAdapter}`);
+        }
+        if (fs.existsSync(enzymeMountAdapterFilePath)) {
+            fs.unlinkSync(enzymeMountAdapterFilePath);
+            getDomEnzymeLogger.verbose(`Deleted temporary file: ${enzymeMountAdapterFilePath}`);
+        }
+        if (fs.existsSync(collectedDomTreeFilePath)) {
+            fs.unlinkSync(collectedDomTreeFilePath);
+            getDomEnzymeLogger.verbose(`Deleted temporary file: ${collectedDomTreeFilePath}`);
+        }
+    } catch (error) {
+        getDomEnzymeLogger.warn(`Error cleaning up temporary files: ${error}`);
+    }
+
     getDomEnzymeLogger.info('Done: getting rendered component code');
     return domTreeOutput;
 };
