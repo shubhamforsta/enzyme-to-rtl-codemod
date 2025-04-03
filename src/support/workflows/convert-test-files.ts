@@ -17,7 +17,7 @@ import {
 import { discoverTestFiles } from '../file-discovery/test-file-discovery';
 
 // Define the function type for LLM call
-export type LLMCallFunction = (prompt: string) => Promise<string>;
+export type LLMCallFunction = (arg: { messages: any[], tools: any[] }) => Promise<{ finish_reason: string, content: string, toolCalls: { id: string, type: string, function: { name: string, arguments: string } }[] }>;
 
 export interface TestResults {
     [filePath: string]: TestResult;
@@ -73,7 +73,7 @@ export const convertTestFiles = async ({
         filePaths = await discoverTestFiles(projectRoot, logLevel);        
     }
 
-    for (const filePath of filePaths.slice(0, 1)) {
+    for (const filePath of filePaths.slice(1, 2)) {
         try {
             // Initialize config
             config = initializeConfig({
@@ -112,7 +112,28 @@ export const convertTestFiles = async ({
         });
 
         // Call the API with a custom LLM method
-        const LLMresponseAttmp1 = await llmCallFunction(initialPrompt);
+        const { content, toolCalls } = await llmCallFunction({
+            messages: [{ role: 'system', content: initialPrompt }],
+            tools: [{
+                type: 'function',
+                function: {
+                    name: 'evaluateAndRun',
+                    description: 'Evaluates and runs the converted test file. ',
+                    parameters: {
+                        type: 'object',
+                        properties: {
+                            file: {
+                                type: 'string',
+                                description: 'React testing Library converted code/file. it should run with jest without manual changes',
+                            },
+                        },
+                        required: ['file'],
+                    },
+                },
+            }],
+        });
+
+        const LLMresponseAttmp1 = JSON.parse(toolCalls[0].function.arguments).file;
 
         // Extract generated code
         const convertedFilePath = extractCodeContentToFile({
@@ -148,45 +169,48 @@ export const convertTestFiles = async ({
         };
 
         // If feedback step is enabled and attempt 1 failed
-        if (
-            enableFeedbackStep &&
-            !totalResults[filePathClean].attempt1.testPass
-        ) {
-            // Create feedback command
-            const feedbackPrompt = generateFeedbackPrompt({
-                rtlConvertedFilePathAttmpt1: config.rtlConvertedFilePathAttmp1,
-                getByTestIdAttribute: config.testId,
-                jestRunLogsFilePathAttmp1: config.jestRunLogsFilePathAttmp1,
-                renderedCompCode: reactCompDom,
-                originalTestCaseNum: config.originalTestCaseNum,
-                extendPrompt: extendFeedbackPrompt,
-            });
+        // if (
+        //     enableFeedbackStep &&
+        //     !totalResults[filePathClean].attempt1.testPass
+        // ) {
+        //     // Create feedback command
+        //     const feedbackPrompt = generateFeedbackPrompt({
+        //         rtlConvertedFilePathAttmpt1: config.rtlConvertedFilePathAttmp1,
+        //         getByTestIdAttribute: config.testId,
+        //         jestRunLogsFilePathAttmp1: config.jestRunLogsFilePathAttmp1,
+        //         renderedCompCode: reactCompDom,
+        //         originalTestCaseNum: config.originalTestCaseNum,
+        //         extendPrompt: extendFeedbackPrompt,
+        //     });
 
-            // Call the API with a custom LLM method
-            const LLMresponseAttmp2 = await llmCallFunction(feedbackPrompt);
+        //     // Call the API with a custom LLM method
+        //     const { content: LLMresponseAttmp2 } = await llmCallFunction({
+        //         messages: [{ role: 'system', content: feedbackPrompt }],
+        //         tools: [],
+        //     });
 
-            // Extract generated code
-            const convertedFeedbackFilePath = extractCodeContentToFile({
-                LLMresponse: LLMresponseAttmp2,
-                rtlConvertedFilePath: config.rtlConvertedFilePathAttmp2,
-            });
+        //     // Extract generated code
+        //     const convertedFeedbackFilePath = extractCodeContentToFile({
+        //         LLMresponse: LLMresponseAttmp2,
+        //         rtlConvertedFilePath: config.rtlConvertedFilePathAttmp2,
+        //     });
 
-            // Run the file and analyze the failures
-            const attempt2Result = await runTestAndAnalyze({
-                filePath: convertedFeedbackFilePath,
-                writeResults: false,
-                jestBinaryPath: config.jestBinaryPath,
-                jestRunLogsPath: config.jestRunLogsFilePathAttmp2,
-                rtlConvertedFilePath: config.rtlConvertedFilePathAttmp2,
-                outputResultsPath: config.outputResultsPath,
-                originalTestCaseNum: config.originalTestCaseNum,
-                summaryFile: config.jsonSummaryPath,
-                attempt: 'attempt2',
-            });
+        //     // Run the file and analyze the failures
+        //     const attempt2Result = await runTestAndAnalyze({
+        //         filePath: convertedFeedbackFilePath,
+        //         writeResults: false,
+        //         jestBinaryPath: config.jestBinaryPath,
+        //         jestRunLogsPath: config.jestRunLogsFilePathAttmp2,
+        //         rtlConvertedFilePath: config.rtlConvertedFilePathAttmp2,
+        //         outputResultsPath: config.outputResultsPath,
+        //         originalTestCaseNum: config.originalTestCaseNum,
+        //         summaryFile: config.jsonSummaryPath,
+        //         attempt: 'attempt2',
+        //     });
 
-            // Store the result for attempt2 in the totalResults object
-            totalResults[filePathClean].attempt2 = attempt2Result.attempt2;
-        }
+        //     // Store the result for attempt2 in the totalResults object
+        //     totalResults[filePathClean].attempt2 = attempt2Result.attempt2;
+        // }
     }
 
     // Write summary to outputResultsPath

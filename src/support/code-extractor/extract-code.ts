@@ -25,27 +25,12 @@ export const extractCodeContentToFile = ({
 }): string => {
     codeExtractorLogger.info('Start: Extracting code from the LLM response');
 
-    // Extract code between tags
-    const testCaseCode = extractCodeBetweenStrings(
-        LLMresponse,
-        '<rtl_test_code>',
-        '</rtl_test_code>',
-    );
-
-    // Check if code was not extracted
-    if (testCaseCode === 'Code not extracted') {
-        codeExtractorLogger.error(
-            'Could not extract code from the LLM response',
-        );
-        codeExtractorLogger.error(`LLM response: ${LLMresponse}`);
-        codeExtractorLogger.error(
-            'Possible reasons: \n1. No LLM response was passed\n2. LLM did not return the code enclosed in <rtl_test_code>...</rtl_test_code> xml tags.\n3. Check if LLM is returning the response with the expected text',
-        );
+    if (!LLMresponse) {
         throw new Error('Could not extract code from the LLM response');
     }
 
     // Write extracted code to file
-    fs.writeFileSync(`${rtlConvertedFilePath}`, testCaseCode, 'utf-8');
+    fs.writeFileSync(`${rtlConvertedFilePath}`, LLMresponse, 'utf-8');
 
     codeExtractorLogger.info('Done: extracting code from the LLM response');
     return rtlConvertedFilePath;

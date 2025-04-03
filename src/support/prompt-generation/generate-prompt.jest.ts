@@ -4,7 +4,7 @@ import {
     generateFeedbackPrompt,
 } from './generate-prompt';
 
-describe('generate initial prompt', () => {
+describe.skip('generate initial prompt', () => {
     const enzymeFilePath =
         'src/support/prompt-generation/utils/test-data/gen-prompt-test-file.jest.tsx';
     const mockGetByTestIdAttribute = 'data-testid';

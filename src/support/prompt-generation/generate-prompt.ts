@@ -45,38 +45,41 @@ export const generateInitialPrompt = ({
 	The rendered component DOM tree for each test case will be provided in <component></component> tags with this structure for one or more test cases "<test_case_title></test_case_title> and <dom_tree></dom_tree>"`;
 
     const mainRequest = `\nPlease perform the following tasks:
-	1. Transform the Enzyme test file into a React Testing Library test file wrapped in <enzyme_test_code></enzyme_test_code> tags.
+	1. Transform the Enzyme test file wrapped in <enzyme_test_code></enzyme_test_code> tags into a React Testing Library test file.
 	2. Convert all test cases and ensure the same number of tests in the file. ${numTestCasesString}
 	3. Replace Enzyme methods with the equivalent React Testing Library methods.
 	4. Update Enzyme imports to React Testing Library imports.
 	5. Adjust Jest matchers for React Testing Library.
-	6. Return the entire file with all converted test cases, enclosed in <rtl_test_code></rtl_test_code> tags.
-	7. Do not modify anything else, until unless it is required.
-	8. Preserve all abstracted functions as they are and use them in the converted file.
-	9. Maintain the original organization and naming of describe and it blocks.
-	Ensure that all conditions are met. The converted file should be runnable by Jest without any manual changes.`;
+    6. Make sure import '@testing-library/jest-dom'; is present if not add it.
+    7. Call evaluateAndRun function and pass the converted test file.
 
-    const additionalRequest = `\nOther instructions section, use them when applicable:
-	1. Prioritize queries in the following order getByRole, getByPlaceholderText, getByText, getByDisplayValue, getByAltText, getByTitle, then getByTestId.
-	2. ${getByTestIdAttribute} attribute is configured to be used with "screen.getByTestId" queries.
-	3. For user simulations use userEvent and import it with "import userEvent from '@testing-library/user-event';"
-	4. Use query* variants only for non-existence checks: Example "expect(screen.query*('example')).not.toBeInTheDocument();"
-	5. Ensure all text/strings are converted to lowercase regex expression. Example: screen.getByText(/your text here/i), screen.getByRole('button', {name: /your text here/i}).
-	6. When asserting that a DOM renders nothing, replace isEmptyRender()).toBe(true) with toBeEmptyDOMElement() by wrapping the component into a container. Example: expect(container).toBeEmptyDOMElement();.`;
+    Important:
+	- Do not modify anything else, until unless it is required.
+	- Preserve all abstracted functions as they are and use them in the converted file.
+	- Maintain the original organization and naming of describe and it blocks.
+	- Ensure that all conditions are met. The converted file should be runnable by Jest without any manual changes.`;
 
-    // User additions to the prompt:
-    const extendedPromptSection =
-        extendPrompt && extendPrompt.length > 0
-            ? '\nAdditional user instructions:\n' +
-              extendPrompt
-                  .filter((item) => item.trim() !== '')
-                  .map((item, index) => `${index + 1}. ${item}`)
-                  .join('\n')
-            : '';
+    // const additionalRequest = `\nOther instructions section, use them when applicable:
+	// 1. Prioritize queries in the following order getByRole, getByPlaceholderText, getByText, getByDisplayValue, getByAltText, getByTitle, then getByTestId.
+	// 2. ${getByTestIdAttribute} attribute is configured to be used with "screen.getByTestId" queries.
+	// 3. For user simulations use userEvent and import it with "import userEvent from '@testing-library/user-event';"
+	// 4. Use query* variants only for non-existence checks: Example "expect(screen.query*('example')).not.toBeInTheDocument();"
+	// 5. Ensure all text/strings are converted to lowercase regex expression. Example: screen.getByText(/your text here/i), screen.getByRole('button', {name: /your text here/i}).
+	// 6. When asserting that a DOM renders nothing, replace isEmptyRender()).toBe(true) with toBeEmptyDOMElement() by wrapping the component into a container. Example: expect(container).toBeEmptyDOMElement();.`;
 
-    const conclusion = `\nNow, please evaluate your output and make sure your converted code is between <rtl_test_code></rtl_test_code> tags.
-	If there are any deviations from the specified conditions, list them explicitly.
-	If the output adheres to all conditions and uses instructions section, you can simply state "The output meets all specified conditions."`;
+    // // User additions to the prompt:
+    // const extendedPromptSection =
+    //     extendPrompt && extendPrompt.length > 0
+    //         ? '\nAdditional user instructions:\n' +
+    //           extendPrompt
+    //               .filter((item) => item.trim() !== '')
+    //               .map((item, index) => `${index + 1}. ${item}`)
+    //               .join('\n')
+    //         : '';
+
+    // const conclusion = `\nNow, please evaluate your output and make sure your converted code is between <rtl_test_code></rtl_test_code> tags.
+	// If there are any deviations from the specified conditions, list them explicitly.
+	// If the output adheres to all conditions and uses instructions section, you can simply state "The output meets all specified conditions."`;
 
     // Test file code prompt
     const testFileCode = fs.readFileSync(filePath, 'utf-8');
@@ -88,9 +91,9 @@ export const generateInitialPrompt = ({
     const finalPrompt =
         contextSetting +
         mainRequest +
-        additionalRequest +
-        extendedPromptSection +
-        conclusion +
+        // additionalRequest +
+        // extendedPromptSection +
+        // conclusion +
         testCaseCodePrompt +
         renderedCompCodePrompt;
 
