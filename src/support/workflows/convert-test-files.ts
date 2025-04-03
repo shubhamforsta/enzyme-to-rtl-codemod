@@ -14,6 +14,7 @@ import {
     generateSummaryJson,
     SummaryJson,
 } from './utils/generate-result-summary';
+import { discoverTestFiles } from '../file-discovery/test-file-discovery';
 
 // Define the function type for LLM call
 export type LLMCallFunction = (prompt: string) => Promise<string>;
@@ -54,7 +55,7 @@ export const convertTestFiles = async ({
     enableFeedbackStep,
     extendFeedbackPrompt,
 }: {
-    filePaths: string[];
+    filePaths?: string[];
     logLevel?: string;
     jestBinaryPath: string;
     outputResultsPath: string;
@@ -69,6 +70,11 @@ export const convertTestFiles = async ({
 
     // Initialize config
     let config = {} as Config;
+
+    if (!filePaths || filePaths.length === 0) {
+        const projectRoot = process.cwd();
+        filePaths = await discoverTestFiles(projectRoot, logLevel);        
+    }
 
     for (const filePath of filePaths) {
         try {
@@ -108,37 +114,6 @@ export const convertTestFiles = async ({
             originalTestCaseNum: config.originalTestCaseNum,
             extendPrompt: extendInitialPrompt,
         });
-
-        // For testing purposes, log the initial prompt to a file and exit early
-        const promptLogPath = `${config.fileConversionFolder}/initial-prompt-${config.filePathTitle}.md`;
-        fs.writeFileSync(promptLogPath, initialPrompt, 'utf-8');
-        console.log(`Initial prompt has been logged to: ${promptLogPath}`);
-        
-        // Create a minimal summary to return that matches the SummaryJson interface
-        const cleanFilePath = `${filePath.replace(/[<>:"/|?*.]+/g, '-')}`;
-        const testResults: TestResults = {
-            [cleanFilePath]: {
-                attempt1: {
-                    testPass: null,
-                    failedTests: 0,
-                    passedTests: 0,
-                    totalTests: config.originalTestCaseNum,
-                    successRate: 0
-                },
-                attempt2: {
-                    testPass: null,
-                    failedTests: 0,
-                    passedTests: 0,
-                    totalTests: 0,
-                    successRate: 0
-                }
-            }
-        };
-        
-        // Generate proper summary JSON using the existing utility function
-        const minimalSummary = generateSummaryJson(testResults);
-        
-        return minimalSummary;
 
         // Call the API with a custom LLM method
         const LLMresponseAttmp1 = await llmCallFunction(initialPrompt);
