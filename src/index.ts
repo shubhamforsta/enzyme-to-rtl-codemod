@@ -11,7 +11,6 @@ export { initializeConfig } from './support/config/config';
 export { getReactCompDom } from './support/enzyme-helper/get-dom-enzyme';
 export {
     generateInitialPrompt,
-    generateFeedbackPrompt,
 } from './support/prompt-generation/generate-prompt';
 export { extractCodeContentToFile } from './support/code-extractor/extract-code';
 export { runTestAndAnalyze } from './support/enzyme-helper/run-test-analysis';

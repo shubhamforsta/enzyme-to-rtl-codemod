@@ -7,14 +7,23 @@ import get from 'lodash/get';
 
 const failedTestsTryAgainUserMessage = {
     role: 'user',
-    content: `The RTL code converted from Enzyme tests is failing. 
-    Please analyze the failures by looking at evaluateAndRun function results.
-    Try fixing the issue and provide a corrected version that passes all tests.`
+    content: `The React Testing Library code converted from Enzyme tests is failing. 
+    Please carefully analyze the failures by looking at the evaluateAndRun function results.
+    Pay special attention to:
+    1. Error messages that indicate missing elements or incorrect queries
+    2. Assertion failures that suggest incorrect test logic
+    3. Syntax errors or runtime exceptions
+    4. Async testing issues that might require waitFor or findBy queries
+    
+    Fix all identified issues and call evaluateAndRun function with corrected version that passes all tests. Remember to maintain the same test structure and number of test cases while fixing the issues.`
 };
 
 const failedToCallFunctionUserMessage = {
     role: 'user',
-    content: `Only respond by calling function evaluateAndRun. please try again.`
+    content: `You must respond by calling the evaluateAndRun function with your complete converted test code. 
+    Do not provide explanations, analysis, or any other text outside of the function call.
+    The evaluateAndRun function is the only way to submit your converted code for validation.
+    Please try again and ensure you're calling the evaluateAndRun function with the complete test file.`
 };
 
 export const attemptAndValidateTransformation = async ({
@@ -31,7 +40,8 @@ export const attemptAndValidateTransformation = async ({
     const tools = getFunctions();
     let finalResult: IndividualTestResult | null = null;
 
-    while (attemptCounter <= 3) {
+    // Try up to 3 times to get a successful conversion
+while (attemptCounter <= 3) {
         attemptCounter++;
 
         const { content, toolCalls } = await llmCallFunction({
@@ -43,7 +53,8 @@ export const attemptAndValidateTransformation = async ({
         const calledFunctionArgs = get(toolCalls, '[0].function.arguments');
 
         if(naturalLanguageResponse && !calledFunctionArgs) {
-            // LLM failed to call the function
+            // LLM failed to call the function - it provided a text response instead
+            // Add a message instructing it to use the function call format
             messages.push(failedToCallFunctionUserMessage);
             continue;
         } else {
