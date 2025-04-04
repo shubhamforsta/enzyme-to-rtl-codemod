@@ -51,7 +51,7 @@ describe('Configuration Functions', () => {
                 'some/path/to',
             );
             expect(resultConfig.jsonSummaryPath).toContain(
-                `${resultConfig.outputResultsPath}/summary.json`,
+                `${resultConfig.projectRootPath}/summary.json`,
             );
             expect(resultConfig.logLevel).toBe(mockArgs.logLevel);
             expect(resultConfig.testId).toBe(mockArgs.testId);

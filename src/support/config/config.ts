@@ -22,6 +22,7 @@ export interface Config {
     testId: string;
     reactVersion: number;
     configInitialized: boolean;
+    projectRootPath: string;
 
     // Per test file
     filePathTitle: string;
@@ -51,6 +52,10 @@ interface InitializeSharedConfigArgs {
     testId: string;
 }
 
+export const getProjectRootPath = (): string => {
+    return process.cwd();
+};
+
 /**
  * Initialize shared config
  * @param {Object} options
@@ -70,7 +75,8 @@ export const initializeSharedConfig = ({
     configureLogLevel(config.logLevel);
     config.testId = testId;
     config.reactVersion = getReactVersion();
-
+    config.jsonSummaryPath = `${getProjectRootPath()}/summary.json`;
+    config.projectRootPath = getProjectRootPath();
     // Check shared config
     checkSharedConfig();
 
@@ -154,7 +160,6 @@ const extractFolderPathContainingFile = (filePath: string): string => {
 const initializePerFileConfig = (filePath: string): void => {
     // Common
     config.outputResultsPath = extractFolderPathContainingFile(filePath);
-    config.jsonSummaryPath = `${config.outputResultsPath}/summary.json`;
     const { fileTitle, fileExtension } = extractFileDetails(filePath);
     config.filePathTitle = fileTitle;
     config.filePathExtension = fileExtension;

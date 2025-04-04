@@ -3,24 +3,22 @@ import { initializeConfig, Config } from '../config/config';
 import { getReactCompDom } from '../enzyme-helper/get-dom-enzyme';
 import {
     generateInitialPrompt,
-    generateFeedbackPrompt,
 } from '../prompt-generation/generate-prompt';
-import { extractCodeContentToFile } from '../code-extractor/extract-code';
 import {
-    runTestAndAnalyze,
-    TestResult,
+    IndividualTestResult,
 } from '../enzyme-helper/run-test-analysis';
 import {
     generateSummaryJson,
     SummaryJson,
 } from './utils/generate-result-summary';
 import { discoverTestFiles } from '../file-discovery/test-file-discovery';
+import { attemptAndValidateTransformation } from '../llm-transformations/attempt-and-validate-transformation';
 
 // Define the function type for LLM call
 export type LLMCallFunction = (arg: { messages: any[], tools: any[] }) => Promise<{ finish_reason: string, content: string, toolCalls: { id: string, type: string, function: { name: string, arguments: string } }[] }>;
 
 export interface TestResults {
-    [filePath: string]: TestResult;
+    [filePath: string]: IndividualTestResult;
 }
 
 /**
@@ -38,9 +36,6 @@ export interface TestResults {
  * @param {string} params.jestBinaryPath - Path to the Jest binary for running tests.
  * @param {string} params.testId - Optional identifier getByTestId(testId) queries.
  * @param {LLMCallFunction} params.llmCallFunction - Function for making LLM API calls to process the tests.
- * @param {string[]} [params.extendInitialPrompt] - Optional array of additional instructions for the initial LLM prompt.
- * @param {boolean} params.enableFeedbackStep - Flag indicating whether to enable feedback-based refinement in case of failed tests.
- * @param {string[]} [params.extendFeedbackPrompt] - Optional array of additional instructions for the feedback LLM prompt.
  * @returns {Promise<SummaryJson>} A promise that resolves to the generated summary JSON object containing the results of the test conversions.
  */
 export const convertTestFiles = async ({
@@ -50,8 +45,6 @@ export const convertTestFiles = async ({
     testId = 'data-testid',
     llmCallFunction,
     extendInitialPrompt,
-    enableFeedbackStep,
-    extendFeedbackPrompt,
 }: {
     filePaths?: string[];
     logLevel?: string;
@@ -59,8 +52,6 @@ export const convertTestFiles = async ({
     testId?: string;
     llmCallFunction: LLMCallFunction;
     extendInitialPrompt?: string[];
-    enableFeedbackStep: boolean;
-    extendFeedbackPrompt?: string[];
 }): Promise<SummaryJson> => {
     // Initialize total results object to collect results
     const totalResults: TestResults = {};
@@ -73,7 +64,7 @@ export const convertTestFiles = async ({
         filePaths = await discoverTestFiles(projectRoot, logLevel);        
     }
 
-    for (const filePath of filePaths.slice(1, 2)) {
+    for (const filePath of filePaths.slice(0, 20)) {
         try {
             // Initialize config
             config = initializeConfig({
@@ -111,106 +102,17 @@ export const convertTestFiles = async ({
             extendPrompt: extendInitialPrompt,
         });
 
-        // Call the API with a custom LLM method
-        const { content, toolCalls } = await llmCallFunction({
-            messages: [{ role: 'system', content: initialPrompt }],
-            tools: [{
-                type: 'function',
-                function: {
-                    name: 'evaluateAndRun',
-                    description: 'Evaluates and runs the converted test file. ',
-                    parameters: {
-                        type: 'object',
-                        properties: {
-                            file: {
-                                type: 'string',
-                                description: 'React testing Library converted code/file. it should run with jest without manual changes',
-                            },
-                        },
-                        required: ['file'],
-                    },
-                },
-            }],
-        });
-
-        const LLMresponseAttmp1 = JSON.parse(toolCalls[0].function.arguments).file;
-
-        // Extract generated code
-        const convertedFilePath = extractCodeContentToFile({
-            LLMresponse: LLMresponseAttmp1,
-            rtlConvertedFilePath: config.rtlConvertedFilePathAttmp1,
-        });
-
-        // Run the file and analyze the failures
-        const attempt1Result = await runTestAndAnalyze({
-            filePath: convertedFilePath,
-            writeResults: false,
-            jestBinaryPath: config.jestBinaryPath,
-            jestRunLogsPath: config.jestRunLogsFilePathAttmp1,
-            rtlConvertedFilePath: config.rtlConvertedFilePathAttmp1,
-            outputResultsPath: config.outputResultsPath,
-            originalTestCaseNum: config.originalTestCaseNum,
-            summaryFile: config.jsonSummaryPath,
-            attempt: 'attempt1',
+        // Attempt and validate transformation
+        const transformationResult = await attemptAndValidateTransformation({
+            config,
+            llmCallFunction,
+            initialPrompt,
+            filePath,
         });
 
         // Store the result in the totalResults object
         const filePathClean = `${filePath.replace(/[<>:"/|?*.]+/g, '-')}`;
-        totalResults[filePathClean] = {
-            attempt1: attempt1Result.attempt1, // Store attempt1
-            // Initialize attempt2 with default values
-            attempt2: {
-                testPass: null,
-                failedTests: 0,
-                passedTests: 0,
-                totalTests: 0,
-                successRate: 0,
-            },
-        };
-
-        // If feedback step is enabled and attempt 1 failed
-        // if (
-        //     enableFeedbackStep &&
-        //     !totalResults[filePathClean].attempt1.testPass
-        // ) {
-        //     // Create feedback command
-        //     const feedbackPrompt = generateFeedbackPrompt({
-        //         rtlConvertedFilePathAttmpt1: config.rtlConvertedFilePathAttmp1,
-        //         getByTestIdAttribute: config.testId,
-        //         jestRunLogsFilePathAttmp1: config.jestRunLogsFilePathAttmp1,
-        //         renderedCompCode: reactCompDom,
-        //         originalTestCaseNum: config.originalTestCaseNum,
-        //         extendPrompt: extendFeedbackPrompt,
-        //     });
-
-        //     // Call the API with a custom LLM method
-        //     const { content: LLMresponseAttmp2 } = await llmCallFunction({
-        //         messages: [{ role: 'system', content: feedbackPrompt }],
-        //         tools: [],
-        //     });
-
-        //     // Extract generated code
-        //     const convertedFeedbackFilePath = extractCodeContentToFile({
-        //         LLMresponse: LLMresponseAttmp2,
-        //         rtlConvertedFilePath: config.rtlConvertedFilePathAttmp2,
-        //     });
-
-        //     // Run the file and analyze the failures
-        //     const attempt2Result = await runTestAndAnalyze({
-        //         filePath: convertedFeedbackFilePath,
-        //         writeResults: false,
-        //         jestBinaryPath: config.jestBinaryPath,
-        //         jestRunLogsPath: config.jestRunLogsFilePathAttmp2,
-        //         rtlConvertedFilePath: config.rtlConvertedFilePathAttmp2,
-        //         outputResultsPath: config.outputResultsPath,
-        //         originalTestCaseNum: config.originalTestCaseNum,
-        //         summaryFile: config.jsonSummaryPath,
-        //         attempt: 'attempt2',
-        //     });
-
-        //     // Store the result for attempt2 in the totalResults object
-        //     totalResults[filePathClean].attempt2 = attempt2Result.attempt2;
-        // }
+        totalResults[filePathClean] = transformationResult;
     }
 
     // Write summary to outputResultsPath

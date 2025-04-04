@@ -1,5 +1,5 @@
 import { TestResults } from '../convert-test-files';
-import { TestResult } from '../../enzyme-helper/run-test-analysis';
+import { IndividualTestResult } from '../../enzyme-helper/run-test-analysis';
 
 export interface Summary {
     totalTests: number;
@@ -10,7 +10,7 @@ export interface Summary {
 
 export interface SummaryJson {
     summary: Summary;
-    [filePath: string]: TestResult | Summary;
+    [filePath: string]: IndividualTestResult | Summary;
 }
 
 /**
@@ -28,21 +28,12 @@ export function generateSummaryJson(testResults: TestResults): SummaryJson {
     // Iterate over the test results to calculate totals
     for (const filePath in testResults) {
         if (Object.prototype.hasOwnProperty.call(testResults, filePath)) {
-            const { attempt1, attempt2 } = testResults[filePath];
+            const { failedTests, passedTests, totalTests: _totalTests, successRate } = testResults[filePath];
 
-            // Select the attempt with the higher success rate for calculations
-            const bestAttempt =
-                attempt2.testPass !== null &&
-                attempt2.successRate > attempt1.successRate
-                    ? attempt2
-                    : attempt1;
-
-            // Accumulate the totals based on the best attempt
-            totalTests += bestAttempt.totalTests;
-            totalSuccessRate +=
-                (bestAttempt.successRate / 100) * bestAttempt.totalTests;
-            convertedAndPassed += bestAttempt.passedTests;
-            convertedAndFailed += bestAttempt.failedTests;
+            totalTests += _totalTests;
+            totalSuccessRate += (successRate / 100) * _totalTests;
+            convertedAndPassed += passedTests;
+            convertedAndFailed += failedTests;
         }
     }
 

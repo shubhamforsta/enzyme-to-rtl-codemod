@@ -13,9 +13,8 @@ export interface IndividualTestResult {
     successRate: number;
 }
 
-export interface TestResult {
-    attempt1: IndividualTestResult;
-    attempt2: IndividualTestResult;
+export interface IndividualResultWithLogs extends IndividualTestResult {
+    jestRunLogs: string;
 }
 
 export interface TestResults {
@@ -34,45 +33,40 @@ export interface TestResults {
  *
  * @param {Object} params - The parameters for the function.
  * @param {string} params.filePath - The path to the test file to be executed.
- * @param {boolean} [params.writeResults=true] - Flag indicating whether to write the results to a summary file.
  * @param {string} params.jestBinaryPath - The path to the Jest binary.
  * @param {string} params.jestRunLogsPath - The file path where Jest run logs will be saved.
  * @param {string} params.rtlConvertedFilePath - The path to the converted React Testing Library test file.
  * @param {string} params.outputResultsPath - The path where results will be saved.
  * @param {number} params.originalTestCaseNum - The number of test cases in the original test file.
- * @param {string} params.summaryFile - The file path where the test result summary will be saved.
- * @param {string} params.attempt - Attempt 1 or attempt 2
- * @returns {Promise<TestResult>} The test result, including pass/fail status, number of passed/failed tests, total tests, and success rate.
+ * @param {boolean} params.finalRun - Flag indicating whether this is the final run
+ * @returns {Promise<IndividualResultWithLogs>} The test result, including pass/fail status, number of passed/failed tests, total tests, and success rate.
  */
 export const runTestAndAnalyze = async ({
     filePath,
-    writeResults = true,
     jestBinaryPath,
     jestRunLogsPath,
     rtlConvertedFilePath,
     outputResultsPath,
     originalTestCaseNum,
-    summaryFile,
-    attempt,
+    finalRun = false,
 }: {
     filePath: string;
-    writeResults?: boolean;
     jestBinaryPath: string;
     jestRunLogsPath: string;
     rtlConvertedFilePath: string;
     outputResultsPath: string;
     originalTestCaseNum: number;
-    summaryFile: string;
-    attempt: keyof TestResult;
-}): Promise<TestResult> => {
+    finalRun?: boolean;
+}): Promise<IndividualResultWithLogs> => {
     testAnalysisLogger.info('Start: Run RTL test and analyze results');
 
-    const resultForAttempt: IndividualTestResult = {
+    const resultForAttempt: IndividualResultWithLogs = {
         testPass: null,
         failedTests: 0,
         passedTests: 0,
         totalTests: 0,
         successRate: 0,
+        jestRunLogs: '',
     };
 
     // Create jest run command for the test file
@@ -87,34 +81,38 @@ export const runTestAndAnalyze = async ({
             generatedFileRunShellProcess.stderr,
     );
 
-    // Write logs to a file
+    // Write logs to a file in verbose mode
     testAnalysisLogger.verbose(`Write jest run logs to ${jestRunLogsPath}`);
-    fs.writeFileSync(jestRunLogsPath, testrunLogs, 'utf-8');
+    finalRun && fs.writeFileSync(jestRunLogsPath, testrunLogs, 'utf-8');
 
     // Analyze logs for errors
     testAnalysisLogger.verbose('Analyze logs for errors');
     resultForAttempt.testPass = analyzeLogsForErrors(testrunLogs);
 
-    if (!resultForAttempt.testPass) {
-        testAnalysisLogger.info('Test failed');
-        testAnalysisLogger.info(
-            `Converted RTL file path: ${rtlConvertedFilePath}`,
-        );
-        testAnalysisLogger.info(`Jest run logs file path: ${jestRunLogsPath}`);
-        testAnalysisLogger.info(`See ${outputResultsPath} for more info`);
-    } else {
-        testAnalysisLogger.info('Test passed!');
-        testAnalysisLogger.info(
-            `Converted RTL file path: ${rtlConvertedFilePath}`,
-        );
-        testAnalysisLogger.info(`Jest run logs file path: ${jestRunLogsPath}`);
-
-        // Check if converted file has the same number of tests as original
-        const convertedTestCaseNum = countTestCases(rtlConvertedFilePath);
-        if (convertedTestCaseNum < originalTestCaseNum) {
-            testAnalysisLogger.warn(
-                `Generated file has fewer test cases (${convertedTestCaseNum}) than original (${originalTestCaseNum})`,
+    
+    if(finalRun) {
+        // log test results
+        if (!resultForAttempt.testPass) {
+            testAnalysisLogger.info('Test failed');
+            testAnalysisLogger.info(
+                `Converted RTL file path: ${rtlConvertedFilePath}`,
             );
+            testAnalysisLogger.info(`Jest run logs file path: ${jestRunLogsPath}`);
+            testAnalysisLogger.info(`See ${outputResultsPath} for more info`);
+        } else {
+            testAnalysisLogger.info('Test passed!');
+            testAnalysisLogger.info(
+                `Converted RTL file path: ${rtlConvertedFilePath}`,
+            );
+            testAnalysisLogger.info(`Jest run logs file path: ${jestRunLogsPath}`);
+
+            // Check if converted file has the same number of tests as original
+            const convertedTestCaseNum = countTestCases(rtlConvertedFilePath);
+            if (convertedTestCaseNum < originalTestCaseNum) {
+                testAnalysisLogger.warn(
+                    `Generated file has fewer test cases (${convertedTestCaseNum}) than original (${originalTestCaseNum})`,
+                );
+            }
         }
     }
     testAnalysisLogger.info('Extracting test results');
@@ -124,46 +122,15 @@ export const runTestAndAnalyze = async ({
     resultForAttempt.passedTests = detailedResult.passedTests;
     resultForAttempt.totalTests = detailedResult.totalTests;
     resultForAttempt.successRate = detailedResult.successRate;
+    resultForAttempt.jestRunLogs = testrunLogs;
 
     testAnalysisLogger.info(
         `Detailed result: ${JSON.stringify(detailedResult)}`,
     );
-    // Check if the summary file already exists
-    let finalResult: TestResult = {
-        attempt1: {
-            testPass: null,
-            failedTests: 0,
-            passedTests: 0,
-            totalTests: 0,
-            successRate: 0,
-        },
-        attempt2: {
-            testPass: null,
-            failedTests: 0,
-            passedTests: 0,
-            totalTests: 0,
-            successRate: 0,
-        },
-    };
-
-    if (fs.existsSync(summaryFile)) {
-        // Read the existing file content
-        const fileContent = fs.readFileSync(summaryFile, 'utf-8');
-        finalResult = JSON.parse(fileContent) as TestResult;
-    }
-    // Store the result for the current attempt (either 'attempt1' or 'attempt2')
-    finalResult[attempt] = resultForAttempt;
-
-    // Write results
-    if (writeResults) {
-        testAnalysisLogger.info(`Writing final result to ${summaryFile}`);
-        const jsonResult = JSON.stringify(finalResult, null, 2);
-        fs.writeFileSync(summaryFile, jsonResult, 'utf-8');
-    }
 
     testAnalysisLogger.info('Done: Run RTL test and analyze results');
 
-    return finalResult;
+    return resultForAttempt;
 };
 
 /**
