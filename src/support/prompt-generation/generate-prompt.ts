@@ -51,7 +51,7 @@ export const generateInitialPrompt = ({
 	4. Update Enzyme imports to React Testing Library imports.
 	5. Adjust Jest matchers for React Testing Library.
     6. Make sure import '@testing-library/jest-dom'; is present if not add it.
-    7. Call evaluateAndRun function and pass the converted test file.
+    7. MOST IMPORTANT :: **Only respond by calling evaluateAndRun function and pass the converted test file**.
 
     Important:
 	- Do not modify anything else, until unless it is required.

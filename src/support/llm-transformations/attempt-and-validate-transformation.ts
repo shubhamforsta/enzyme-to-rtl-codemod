@@ -1,66 +1,88 @@
 import { Config } from '../config/config';
 import { extractCodeContentToFile } from '../code-extractor/extract-code';
-import { runTestAndAnalyze } from '../enzyme-helper/run-test-analysis';
+import { IndividualTestResult, runTestAndAnalyze } from '../enzyme-helper/run-test-analysis';
 import { LLMCallFunction } from '../workflows/convert-test-files';
+import { getFunctions } from './utils/getFunctions';
+import get from 'lodash/get';
 
-const tryAgainUserMessage = {
+const failedTestsTryAgainUserMessage = {
     role: 'user',
     content: `The RTL code converted from Enzyme tests is failing. 
     Please analyze the failures by looking at evaluateAndRun function results.
     Try fixing the issue and provide a corrected version that passes all tests.`
 };
 
+const failedToCallFunctionUserMessage = {
+    role: 'user',
+    content: `Only respond by calling function evaluateAndRun. please try again.`
+};
+
 export const attemptAndValidateTransformation = async ({
     config,
     llmCallFunction,
     initialPrompt,
-    filePath
 }: {
     config: Config,
     llmCallFunction: LLMCallFunction,
     initialPrompt: string,
-    filePath: string,
 }) => {
-    // Call the API with a custom LLM method
-    const { content, toolCalls } = await llmCallFunction({
-        messages: [{ role: 'system', content: initialPrompt }],
-        tools: [{
-            type: 'function',
-            function: {
-                name: 'evaluateAndRun',
-                description: 'Evaluates and runs the converted test file. ',
-                parameters: {
-                    type: 'object',
-                    properties: {
-                        file: {
-                            type: 'string',
-                            description: 'React testing Library converted code/file. it should run with jest without manual changes',
-                        },
-                    },
-                    required: ['file'],
-                },
-            },
-        }],
-    });
+    let attemptCounter = 0;
+    const messages: any[] = [{ role: 'system', content: initialPrompt }];
+    const tools = getFunctions();
+    let finalResult: IndividualTestResult | null = null;
 
-    const LLMresponseAttmp1 = JSON.parse(toolCalls[0].function.arguments).file;
+    while (attemptCounter <= 3) {
+        attemptCounter++;
 
-    // Extract generated code
-    const convertedFilePath = extractCodeContentToFile({
-        LLMresponse: LLMresponseAttmp1,
-        rtlConvertedFilePath: config.rtlConvertedFilePathAttmp1,
-    });
+        const { content, toolCalls } = await llmCallFunction({
+            messages,
+            tools,
+        });
 
-    // Run the file and analyze the failures
-    const { jestRunLogs, ...attemptResult } = await runTestAndAnalyze({
-        filePath: convertedFilePath,
-        jestBinaryPath: config.jestBinaryPath,
-        jestRunLogsPath: config.jestRunLogsFilePathAttmp1,
-        rtlConvertedFilePath: config.rtlConvertedFilePathAttmp1,
-        outputResultsPath: config.outputResultsPath,
-        originalTestCaseNum: config.originalTestCaseNum,
-        finalRun: false
-    });
+        const naturalLanguageResponse = content;
+        const calledFunctionArgs = get(toolCalls, '[0].function.arguments');
 
-    return attemptResult;
+        if(naturalLanguageResponse && !calledFunctionArgs) {
+            // LLM failed to call the function
+            messages.push(failedToCallFunctionUserMessage);
+            continue;
+        } else {
+            const LLMResponse = JSON.parse(calledFunctionArgs).file;
+            const calledFuntionId = get(toolCalls, '[0].id');
+
+            // Extract generated code
+            const convertedFilePath = extractCodeContentToFile({
+                LLMresponse: LLMResponse,
+                rtlConvertedFilePath: config.rtlConvertedFilePathAttmp1,
+            });
+
+            // Run the file and analyze the failures
+            const { jestRunLogs, testPass, ...restSummary } = await runTestAndAnalyze({
+                filePath: convertedFilePath,
+                jestBinaryPath: config.jestBinaryPath,
+                jestRunLogsPath: config.jestRunLogsFilePathAttmp1,
+                rtlConvertedFilePath: config.rtlConvertedFilePathAttmp1,
+                outputResultsPath: config.outputResultsPath,
+                originalTestCaseNum: config.originalTestCaseNum,
+                finalRun: false
+            });
+
+            // update the result to return
+            finalResult = { testPass, ...restSummary };
+
+            if(!testPass) {
+                messages.push({
+                    role: 'function',
+                    id: calledFuntionId,
+                    name: 'evaluateAndRun',
+                    content: jestRunLogs,
+                });
+                messages.push(failedTestsTryAgainUserMessage);
+            } else {
+                break;
+            }
+        }
+    }
+    
+    return finalResult;
 };

@@ -34,6 +34,7 @@
   },
   "dependencies": {
     "jscodeshift": "17.0.0",
+    "lodash": "^4.17.21",
     "ora": "^8.2.0",
     "winston": "3.13.1"
   },
@@ -50,6 +51,7 @@
     "@types/enzyme": "3.10.18",
     "@types/jest": "29.5.12",
     "@types/jscodeshift": "0.11.11",
+    "@types/lodash": "^4.17.16",
     "@types/node": "20.14.3",
     "@typescript-eslint/eslint-plugin": "7.16.1",
     "@typescript-eslint/parser": "7.16.1",

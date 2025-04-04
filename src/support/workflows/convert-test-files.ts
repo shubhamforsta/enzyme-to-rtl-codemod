@@ -64,7 +64,7 @@ export const convertTestFiles = async ({
         filePaths = await discoverTestFiles(projectRoot, logLevel);        
     }
 
-    for (const filePath of filePaths.slice(0, 20)) {
+    for (const filePath of filePaths.slice(5, 6)) {
         try {
             // Initialize config
             config = initializeConfig({
@@ -107,8 +107,11 @@ export const convertTestFiles = async ({
             config,
             llmCallFunction,
             initialPrompt,
-            filePath,
         });
+
+        if (!transformationResult) {
+            throw new Error('Failed to transform test file');
+        }
 
         // Store the result in the totalResults object
         const filePathClean = `${filePath.replace(/[<>:"/|?*.]+/g, '-')}`;
