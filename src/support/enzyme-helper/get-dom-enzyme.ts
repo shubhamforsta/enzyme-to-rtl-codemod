@@ -41,7 +41,6 @@ export const getReactCompDom = async ({
     jestBinaryPath: string;
     reactVersion: number;
 }): Promise<string> => {
-    getDomEnzymeLogger.info('Start: getting rendered component code');
 
     // Check if file has Enzyme imports for mount/shallow
     if (!enzymeImportsPresent) {
@@ -119,7 +118,6 @@ export const getReactCompDom = async ({
         getDomEnzymeLogger.warn(`Error cleaning up temporary files: ${error}`);
     }
 
-    getDomEnzymeLogger.info('Done: getting rendered component code');
     return domTreeOutput;
 };
 

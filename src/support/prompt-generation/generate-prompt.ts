@@ -11,7 +11,6 @@ export const promptLogger = createCustomLogger('Prompt');
  *
  * @param {Object} params - The parameters for the function.
  * @param {string} params.filePath - The path to the Enzyme test file.
- * @param {string} params.getByTestIdAttribute - The configured attribute for screen.getByTestId queries.
  * @param {string} params.renderedCompCode - The rendered component DOM tree code.
  * @param {number} params.originalTestCaseNum - The number of test cases in the original file.
  * @param {string[]} [params.extendPrompt] - Optional user-provided additional instructions for the prompt.
@@ -19,18 +18,15 @@ export const promptLogger = createCustomLogger('Prompt');
  */
 export const generateInitialPrompt = ({
     filePath,
-    getByTestIdAttribute,
     renderedCompCode,
     originalTestCaseNum,
     extendPrompt,
 }: {
     filePath: string;
-    getByTestIdAttribute: string;
     renderedCompCode: string;
     originalTestCaseNum: number;
     extendPrompt?: string[];
 }): string => {
-    promptLogger.info('Start: generating prompt');
 
     // Get number of test cases
     let numTestCasesString = '';
@@ -59,11 +55,12 @@ export const generateInitialPrompt = ({
 	6. Make sure import '@testing-library/jest-dom'; is present if not add it.
 	7. If any other components are used under find or other query methods, those queries need to be updated with what is available in DOM tree. check how the component rendered in enzyme under <component></component> tags.
 
-    Important:
-	- Do not modify anything else, unless it is required for the conversion.
-	- Preserve all abstracted functions as they are and use them in the converted file.
-	- Maintain the original organization and naming of describe and it blocks.
-	- Ensure that all conditions are met. The converted file should be runnable by Jest without any manual changes.`;
+    IMPORTANT:
+    - **Make sure same testing logic is preserved. snapshot tests should be snapshot tests, user interactions should be user interactions, query based tests should be query based tests.**
+	- *Do not modify anything else, unless it is required for the conversion.*
+	- *Preserve all abstracted functions as they are and use them in the converted file.*
+	- *Maintain the original organization and naming of describe and it blocks.*
+	- *Ensure that all conditions are met. The converted file should be runnable by Jest without any manual changes.*`;
 
     // const additionalRequest = `\nOther instructions section, use them when applicable:
 	// 1. Prioritize queries in the following order getByRole, getByPlaceholderText, getByText, getByDisplayValue, getByAltText, getByTitle, then getByTestId.
@@ -73,15 +70,15 @@ export const generateInitialPrompt = ({
 	// 5. Ensure all text/strings are converted to lowercase regex expression. Example: screen.getByText(/your text here/i), screen.getByRole('button', {name: /your text here/i}).
 	// 6. When asserting that a DOM renders nothing, replace isEmptyRender()).toBe(true) with toBeEmptyDOMElement() by wrapping the component into a container. Example: expect(container).toBeEmptyDOMElement();.`;
 
-    // // User additions to the prompt:
-    // const extendedPromptSection =
-    //     extendPrompt && extendPrompt.length > 0
-    //         ? '\nAdditional user instructions:\n' +
-    //           extendPrompt
-    //               .filter((item) => item.trim() !== '')
-    //               .map((item, index) => `${index + 1}. ${item}`)
-    //               .join('\n')
-    //         : '';
+    // User additions to the prompt:
+    const extendedPromptSection =
+        extendPrompt && extendPrompt.length > 0
+            ? '\nAdditional user instructions:\n' +
+              extendPrompt
+                  .filter((item) => item.trim() !== '')
+                  .map((item, index) => `${index + 1}. ${item}`)
+                  .join('\n')
+            : '';
 
     const conclusion = `\nMOST IMPORTANT :: Please call evaluateAndRun function and pass the converted test file`;
 
@@ -95,12 +92,10 @@ export const generateInitialPrompt = ({
     const finalPrompt =
         contextSetting +
         mainRequest +
-        // additionalRequest +
-        // extendedPromptSection +
+        extendedPromptSection +
         conclusion +
         testCaseCodePrompt +
         renderedCompCodePrompt;
 
-    promptLogger.info('Done: generating prompt');
     return finalPrompt;
 };

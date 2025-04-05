@@ -13,6 +13,7 @@ import {
 } from './utils/generate-result-summary';
 import { discoverTestFiles } from '../file-discovery/test-file-discovery';
 import { attemptAndValidateTransformation } from '../llm-transformations/attempt-and-validate-transformation';
+import ora from 'ora';
 
 // Define the function type for LLM call
 export type LLMCallFunction = (arg: { messages: any[], tools: any[] }) => Promise<{ finish_reason: string, content: string, toolCalls: { id: string, type: string, function: { name: string, arguments: string } }[] }>;
@@ -55,16 +56,20 @@ export const convertTestFiles = async ({
 }): Promise<SummaryJson> => {
     // Initialize total results object to collect results
     const totalResults: TestResults = {};
+    const spinner = ora({
+        text: 'Starting conversion from Enzyme to RTL',
+        color: 'blue',
+    }).start();
 
     // Initialize config
     let config = {} as Config;
 
     if (!filePaths || filePaths.length === 0) {
         const projectRoot = process.cwd();
-        filePaths = await discoverTestFiles(projectRoot, logLevel);        
+        filePaths = await discoverTestFiles(projectRoot, spinner);
     }
 
-    for (const filePath of filePaths.slice(5, 6)) {
+    for (const filePath of filePaths.slice(10, 11)) {
         try {
             // Initialize config
             config = initializeConfig({
@@ -72,6 +77,7 @@ export const convertTestFiles = async ({
                 logLevel,
                 jestBinaryPath,
                 testId,
+                spinner
             });
         } catch (error) {
             console.error(
@@ -83,6 +89,7 @@ export const convertTestFiles = async ({
 
         // Need to look how enzyme tests return the dom. Assuming they will not be full DOM compared to RTL.
         // Get React Component DOM tree for each test case
+        spinner.start(`Getting React Component DOM tree`);
         const reactCompDom = await getReactCompDom({
             filePath,
             enzymeImportsPresent: config.enzymeImportsPresent,
@@ -92,21 +99,22 @@ export const convertTestFiles = async ({
             jestBinaryPath: config.jestBinaryPath,
             reactVersion: config.reactVersion,
         });
+        spinner.succeed();
 
         // Generate the prompt
         const initialPrompt = generateInitialPrompt({
             filePath,
-            getByTestIdAttribute: config.testId,
             renderedCompCode: reactCompDom,
             originalTestCaseNum: config.originalTestCaseNum,
             extendPrompt: extendInitialPrompt,
         });
 
-        // Attempt and validate transformation
         const transformationResult = await attemptAndValidateTransformation({
             config,
             llmCallFunction,
             initialPrompt,
+            spinner,
+            logLevel
         });
 
         if (!transformationResult) {
@@ -117,6 +125,7 @@ export const convertTestFiles = async ({
         const filePathClean = `${filePath.replace(/[<>:"/|?*.]+/g, '-')}`;
         totalResults[filePathClean] = transformationResult;
     }
+    spinner.succeed('Test conversion completed');
 
     // Write summary to outputResultsPath
     const generatedSummary = generateSummaryJson(totalResults);

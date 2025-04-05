@@ -5,7 +5,9 @@ import { countTestCases } from './utils/utils';
 import {
     createCustomLogger,
     updateLogLevelForAllLoggers,
+    getVerboseLogFilePath,
 } from '../logger/logger';
+import { Ora } from 'ora';
 
 export const configLogger = createCustomLogger('Config');
 
@@ -19,6 +21,7 @@ export interface Config {
     outputResultsPath: string;
     jsonSummaryPath: string;
     logLevel: LogLevel;
+    verboseLogFilePath: string;
     testId: string;
     reactVersion: number;
     configInitialized: boolean;
@@ -35,12 +38,8 @@ export interface Config {
     enzymeImportsPresent: boolean;
 
     // Attempt 1
-    rtlConvertedFilePathAttmp1: string;
-    jestRunLogsFilePathAttmp1: string;
-
-    // Attempt 2
-    rtlConvertedFilePathAttmp2: string;
-    jestRunLogsFilePathAttmp2: string;
+    rtlConvertedFilePath: string;
+    jestRunLogsFilePath: string;
 }
 
 // Persistent config object
@@ -90,6 +89,7 @@ interface InitializeConfigArgs {
     jestBinaryPath: string;
     testId?: string;
     logLevel?: LogLevel;
+    spinner: Ora;
 }
 
 /**
@@ -120,6 +120,7 @@ export const initializeConfig = ({
     jestBinaryPath,
     testId = 'data-testid',
     logLevel = 'info',
+    spinner
 }: InitializeConfigArgs): Config => {
     // Check if the shared config has already been initialized
     if (!config.configInitialized) {
@@ -133,11 +134,8 @@ export const initializeConfig = ({
     // Initialize or update per test file properties
     initializePerFileConfig(filePath);
 
-    // Count number of test cases
-    configLogger.info('Starting conversion from Enzyme to RTL');
-    configLogger.info(`Jest binary path: ${config.jestBinaryPath}`);
-    configLogger.info(`Enzyme file path to convert: ${filePath}`);
-    configLogger.info(
+    spinner.info(`Transforming Enzyme file: ${filePath}`);
+    spinner.info(
         `Number of test cases in file: ${config.originalTestCaseNum}`,
     );
 
@@ -171,12 +169,8 @@ const initializePerFileConfig = (filePath: string): void => {
     config.enzymeImportsPresent = checkIfEnzyme(filePath);
 
     // Attempt 1
-    config.rtlConvertedFilePathAttmp1 = `${config.outputResultsPath}/attmp-1-rtl-converted-${config.filePathTitle}${config.filePathExtension}`;
-    config.jestRunLogsFilePathAttmp1 = `${config.outputResultsPath}/attmp-1-jest-run-logs-${config.filePathTitle}.md`;
-
-    // Attempt 2
-    config.rtlConvertedFilePathAttmp2 = `${config.outputResultsPath}/attmp-2-rtl-converted-${config.filePathTitle}${config.filePathExtension}`;
-    config.jestRunLogsFilePathAttmp2 = `${config.outputResultsPath}/attmp-2-jest-run-logs-${config.filePathTitle}.md`;
+    config.rtlConvertedFilePath = `${config.outputResultsPath}/rtl-converted-${config.filePathTitle}${config.filePathExtension}`;
+    config.jestRunLogsFilePath = `${config.outputResultsPath}/jest-run-logs-${config.filePathTitle}.md`;
 
     // Check per file config
     checkPerFileConfig(filePath);
@@ -192,6 +186,10 @@ export const configureLogLevel = (logLevel: LogLevel): void => {
     process.env.LOG_LEVEL = logLevel as string;
     // Update the global log level and all loggers
     updateLogLevelForAllLoggers(logLevel as string);
+    
+    // Set the verbose log file path in config
+    config.verboseLogFilePath = getVerboseLogFilePath();
+    configLogger.info(`Verbose logs will be written to: ${config.verboseLogFilePath}`);
 };
 
 /**

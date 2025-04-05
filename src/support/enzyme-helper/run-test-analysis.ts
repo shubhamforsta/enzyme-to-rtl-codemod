@@ -1,5 +1,4 @@
 import { runCommand } from '../shell-helper/shell-helper';
-import { countTestCases } from '../config/utils/utils';
 import fs from 'fs';
 import { createCustomLogger } from '../logger/logger';
 
@@ -39,6 +38,7 @@ export interface TestResults {
  * @param {string} params.outputResultsPath - The path where results will be saved.
  * @param {number} params.originalTestCaseNum - The number of test cases in the original test file.
  * @param {boolean} params.finalRun - Flag indicating whether this is the final run
+ * @param {Ora} params.spinner - The spinner instance for progress tracking
  * @returns {Promise<IndividualResultWithLogs>} The test result, including pass/fail status, number of passed/failed tests, total tests, and success rate.
  */
 export const runTestAndAnalyze = async ({
@@ -47,18 +47,15 @@ export const runTestAndAnalyze = async ({
     jestRunLogsPath,
     rtlConvertedFilePath,
     outputResultsPath,
-    originalTestCaseNum,
-    finalRun = false,
+    logLevel
 }: {
     filePath: string;
     jestBinaryPath: string;
     jestRunLogsPath: string;
     rtlConvertedFilePath: string;
     outputResultsPath: string;
-    originalTestCaseNum: number;
-    finalRun?: boolean;
+    logLevel?: string
 }): Promise<IndividualResultWithLogs> => {
-    testAnalysisLogger.info('Start: Run RTL test and analyze results');
 
     const resultForAttempt: IndividualResultWithLogs = {
         testPass: null,
@@ -81,41 +78,20 @@ export const runTestAndAnalyze = async ({
             generatedFileRunShellProcess.stderr,
     );
 
-    // Write logs to a file in verbose mode
-    testAnalysisLogger.verbose(`Write jest run logs to ${jestRunLogsPath}`);
-    finalRun && fs.writeFileSync(jestRunLogsPath, testrunLogs, 'utf-8');
-
     // Analyze logs for errors
     testAnalysisLogger.verbose('Analyze logs for errors');
     resultForAttempt.testPass = analyzeLogsForErrors(testrunLogs);
 
-    
-    if(finalRun) {
-        // log test results
-        if (!resultForAttempt.testPass) {
-            testAnalysisLogger.info('Test failed');
-            testAnalysisLogger.info(
-                `Converted RTL file path: ${rtlConvertedFilePath}`,
-            );
-            testAnalysisLogger.info(`Jest run logs file path: ${jestRunLogsPath}`);
-            testAnalysisLogger.info(`See ${outputResultsPath} for more info`);
-        } else {
-            testAnalysisLogger.info('Test passed!');
-            testAnalysisLogger.info(
-                `Converted RTL file path: ${rtlConvertedFilePath}`,
-            );
-            testAnalysisLogger.info(`Jest run logs file path: ${jestRunLogsPath}`);
-
-            // Check if converted file has the same number of tests as original
-            const convertedTestCaseNum = countTestCases(rtlConvertedFilePath);
-            if (convertedTestCaseNum < originalTestCaseNum) {
-                testAnalysisLogger.warn(
-                    `Generated file has fewer test cases (${convertedTestCaseNum}) than original (${originalTestCaseNum})`,
-                );
-            }
-        }
+    // Log the results
+    if (!resultForAttempt.testPass) {
+        testAnalysisLogger.verbose('Test failed');
+        testAnalysisLogger.verbose(
+            `Converted RTL file path: ${rtlConvertedFilePath}`,
+        );
+        logLevel === 'verbose' && fs.writeFileSync(jestRunLogsPath, testrunLogs, 'utf-8');
+        testAnalysisLogger.verbose(`Jest run logs file path: ${jestRunLogsPath}`);
+        testAnalysisLogger.verbose(`See ${outputResultsPath} for more info`);
     }
-    testAnalysisLogger.info('Extracting test results');
     const detailedResult = extractTestResults(testrunLogs);
     // Merge detailedResult into the result object
     resultForAttempt.failedTests = detailedResult.failedTests;
@@ -123,12 +99,6 @@ export const runTestAndAnalyze = async ({
     resultForAttempt.totalTests = detailedResult.totalTests;
     resultForAttempt.successRate = detailedResult.successRate;
     resultForAttempt.jestRunLogs = testrunLogs;
-
-    testAnalysisLogger.info(
-        `Detailed result: ${JSON.stringify(detailedResult)}`,
-    );
-
-    testAnalysisLogger.info('Done: Run RTL test and analyze results');
 
     return resultForAttempt;
 };

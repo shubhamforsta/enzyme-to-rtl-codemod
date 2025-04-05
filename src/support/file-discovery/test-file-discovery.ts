@@ -1,18 +1,16 @@
 import { runCommand } from '../shell-helper/shell-helper';
 import fs from 'fs';
-import path from 'path';
 import { createCustomLogger } from '../logger/logger';
-import ora from 'ora';
+import { type Ora } from 'ora';
 
 export const fileDiscoveryLogger = createCustomLogger('File Discovery');
 
 /**
  * Discovers test files in the project that use Enzyme.
  * @param projectRoot - The root directory of the project to search in
- * @param logLevel - Optional log level to control verbosity ('info' or 'verbose')
  * @returns A promise resolving to an array of file paths
  */
-export const discoverTestFiles = async (projectRoot: string, logLevel?: string): Promise<string[]> => {
+export const discoverTestFiles = async (projectRoot: string, spinner: Ora): Promise<string[]> => {
     fileDiscoveryLogger.info(`Searching for test files in directory: ${projectRoot}`);
     
     // Build a command to find all test files using a more reliable approach for macOS
@@ -30,18 +28,14 @@ export const discoverTestFiles = async (projectRoot: string, logLevel?: string):
         // Parse the output into an array of file paths
         const filePaths = result.output.trim().split('\n').filter(Boolean);
         
-        if (logLevel === 'verbose') {
-            fileDiscoveryLogger.info(`Found ${filePaths.length} test files in total`);
-            fileDiscoveryLogger.info('All test files found:');
-            filePaths.forEach(file => fileDiscoveryLogger.info(`  - ${file}`));
-        }
+        fileDiscoveryLogger.verbose(`Found ${filePaths.length} test files in total`);
+        fileDiscoveryLogger.verbose('All test files found:');
+        filePaths.forEach(file => fileDiscoveryLogger.verbose(`  - ${file}`));
         
         // Filter for files that use Enzyme
-        const enzymeFiles = await filterEnzymeTestFiles(filePaths, logLevel);
+        const enzymeFiles = await filterEnzymeTestFiles(filePaths, spinner);
         
-        if (logLevel === 'verbose') {
-            fileDiscoveryLogger.info(`Identified ${enzymeFiles.length} files using Enzyme`);
-        }
+        fileDiscoveryLogger.verbose(`Identified ${enzymeFiles.length} files using Enzyme`);
         
         return enzymeFiles;
     } catch (error) {
@@ -53,10 +47,9 @@ export const discoverTestFiles = async (projectRoot: string, logLevel?: string):
 /**
  * Helper function to detect Enzyme usage in test files
  * @param filePaths - Array of file paths to check
- * @param logLevel - Optional log level to control verbosity
  * @returns Promise resolving to array of file paths that use Enzyme
  */
-const filterEnzymeTestFiles = async (filePaths: string[], logLevel?: string): Promise<string[]> => {
+const filterEnzymeTestFiles = async (filePaths: string[], spinner: Ora): Promise<string[]> => {
     
     const enzymeFiles: string[] = [];
     const enzymePatterns = [
@@ -75,23 +68,13 @@ const filterEnzymeTestFiles = async (filePaths: string[], logLevel?: string): Pr
     let filesProcessed = 0;
     let filesWithErrors = 0;
     
-    // Create a spinner
-    const spinner = ora({
-        text: `Processing 0/${filePaths.length} files...`,
-        color: 'blue',
-    }).start();
+    spinner.text = `Processing 0/${filePaths.length} files... [0%]`;
     
     for (const filePath of filePaths) {
         try {
             filesProcessed++;
-            if (filesProcessed % 10 === 0 || logLevel === 'verbose') {
-                // Update spinner text
+            if (filesProcessed % 10 === 0) {
                 spinner.text = `Processing ${filesProcessed}/${filePaths.length} files... [${Math.round((filesProcessed / filePaths.length) * 100)}%]`;
-                
-                if (logLevel === 'verbose') {
-                    // In verbose mode, also log the progress
-                    fileDiscoveryLogger.info(`Processed ${filesProcessed}/${filePaths.length} files...`);
-                }
             }
             
             const content = fs.readFileSync(filePath, 'utf8');
@@ -101,22 +84,13 @@ const filterEnzymeTestFiles = async (filePaths: string[], logLevel?: string): Pr
             
             if (hasEnzyme) {
                 enzymeFiles.push(filePath);
-                if (logLevel === 'verbose') {
-                    fileDiscoveryLogger.info(`Found Enzyme usage in: ${path.basename(filePath)}`);
-                    // Log which pattern matched
-                    const matchedPatterns = enzymePatterns
-                        .filter(pattern => content.includes(pattern))
-                        .join(', ');
-                    fileDiscoveryLogger.info(`  - Matched patterns: ${matchedPatterns}`);
-                }
             }
         } catch (error) {
             filesWithErrors++;
-            fileDiscoveryLogger.error(`Error processing file ${filePath}: ${error}`);
+            fileDiscoveryLogger.verbose(`Error processing file ${filePath}: ${error}`);
         }
     }
     
-    // Stop the spinner and show completion message
     spinner.succeed(`Completed processing ${filesProcessed} files. Found ${enzymeFiles.length} files with Enzyme usage.`);
     
     if (filesWithErrors > 0) {

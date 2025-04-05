@@ -1,7 +1,4 @@
 import fs from 'fs';
-import { createCustomLogger } from '../logger/logger';
-
-export const codeExtractorLogger = createCustomLogger('Extract Code');
 
 /**
  * Extract code content from an LLM response and write it to a file.
@@ -23,8 +20,6 @@ export const extractCodeContentToFile = ({
     LLMresponse: string;
     rtlConvertedFilePath: string;
 }): string => {
-    codeExtractorLogger.info('Start: Extracting code from the LLM response');
-
     if (!LLMresponse) {
         throw new Error('Could not extract code from the LLM response');
     }
@@ -32,42 +27,5 @@ export const extractCodeContentToFile = ({
     // Write extracted code to file
     fs.writeFileSync(`${rtlConvertedFilePath}`, LLMresponse, 'utf-8');
 
-    codeExtractorLogger.info('Done: extracting code from the LLM response');
     return rtlConvertedFilePath;
-};
-
-/**
- * Extract code between strings
- * @param inputString
- * @param startString
- * @param endString
- * @returns
- */
-const extractCodeBetweenStrings = (
-    inputString: string,
-    startString: string,
-    endString: string,
-): string => {
-    codeExtractorLogger.verbose(
-        `Extracting code between ${startString} and ${endString}`,
-    );
-
-    // Define regex to extract code
-    const patternString = `${startString}([\\s\\S]*?)${endString}`;
-    const pattern = new RegExp(patternString);
-
-    const match: RegExpMatchArray | null = inputString.match(pattern);
-
-    if (match) {
-        const extractedCode: string = match[1];
-        codeExtractorLogger.verbose(
-            `Code between ${startString} and ${endString} extracted`,
-        );
-
-        return extractedCode;
-    }
-    codeExtractorLogger.warn(
-        `Extracting code between ${startString} and ${endString} failed!`,
-    );
-    return 'Code not extracted';
 };
