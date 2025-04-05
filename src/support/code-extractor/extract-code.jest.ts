@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { extractCodeContentToFile, codeExtractorLogger } from './extract-code';
+import { extractCodeContentToFile } from './extract-code';
 
 // Mock fs.writeFileSync
 jest.spyOn(fs, 'writeFileSync').mockImplementation(() => {});

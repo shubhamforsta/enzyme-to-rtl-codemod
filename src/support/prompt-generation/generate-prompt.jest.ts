@@ -6,7 +6,6 @@ import {
 describe.skip('generate initial prompt', () => {
     const enzymeFilePath =
         'src/support/prompt-generation/utils/test-data/gen-prompt-test-file.jest.tsx';
-    const mockGetByTestIdAttribute = 'data-testid';
     // AST transformation removed
     const mockRenderedCompCode = '<component>Rendered component</component>';
     const originalTestCaseNum = 4;
@@ -50,7 +49,6 @@ describe.skip('generate initial prompt', () => {
 
         const result = generateInitialPrompt({
             filePath: enzymeFilePath,
-            getByTestIdAttribute: mockGetByTestIdAttribute,
             renderedCompCode: mockRenderedCompCode,
             originalTestCaseNum,
         });
@@ -72,7 +70,6 @@ describe.skip('generate initial prompt', () => {
 
         const result = generateInitialPrompt({
             filePath: enzymeFilePath,
-            getByTestIdAttribute: mockGetByTestIdAttribute,
             renderedCompCode: mockRenderedCompCode,
             originalTestCaseNum: 4,
             extendPrompt,

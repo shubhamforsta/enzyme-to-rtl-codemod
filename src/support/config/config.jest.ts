@@ -4,20 +4,33 @@ import {
     configureLogLevel,
     setOutputResultsPath,
     getReactVersion,
-    checkSharedConfig,
     checkPerFileConfig,
     checkIfEnzyme,
-    configLogger,
     extractFileDetails,
-    createFileConversionFolder,
     initializeConfig,
     Config,
 } from './config';
 import { countTestCases } from './utils/utils';
+import { Ora } from 'ora';
+
+const spinner = {
+    info: jest.fn(),
+    start: jest.fn(),
+    stop: jest.fn(),
+    succeed: jest.fn(),
+    fail: jest.fn()
+} as unknown as Ora;
 
 // Mock the modules
 jest.mock('fs');
-jest.mock('path');
+jest.mock('path', () => {
+    const originalPath = jest.requireActual('path');
+    return {
+        join: jest.fn(() => '/verbose.log'),
+        resolve: jest.fn(),
+        ...originalPath
+    };
+});
 
 describe('Configuration Functions', () => {
     beforeEach(() => {
@@ -31,6 +44,7 @@ describe('Configuration Functions', () => {
                 jestBinaryPath: 'path/to/jest',
                 testId: 'data-test-id',
                 logLevel: 'verbose',
+                spinner,
             };
             // Mock the file content to simulate test cases number
             const mockFileContent = `
@@ -77,17 +91,11 @@ describe('Configuration Functions', () => {
             expect(resultConfig.enzymeImportsPresent).toBe(false);
 
             // Assertions for attempt paths
-            expect(resultConfig.rtlConvertedFilePathAttmp1).toContain(
-                `${resultConfig.outputResultsPath}/attmp-1-rtl-converted-file.test.tsx`,
+            expect(resultConfig.rtlConvertedFilePath).toContain(
+                `${resultConfig.outputResultsPath}/rtl-converted-file.test.tsx`,
             );
-            expect(resultConfig.jestRunLogsFilePathAttmp1).toContain(
-                `${resultConfig.outputResultsPath}/attmp-1-jest-run-logs-file.md`,
-            );
-            expect(resultConfig.rtlConvertedFilePathAttmp2).toContain(
-                `${resultConfig.outputResultsPath}/attmp-2-rtl-converted-file.test.tsx`,
-            );
-            expect(resultConfig.jestRunLogsFilePathAttmp2).toContain(
-                `${resultConfig.outputResultsPath}/attmp-2-jest-run-logs-file.md`,
+            expect(resultConfig.jestRunLogsFilePath).toContain(
+                `${resultConfig.outputResultsPath}/jest-run-logs-file.md`,
             );
             // Reset the config object after the test
             (Object.keys(resultConfig) as Array<keyof Config>).forEach(
@@ -110,7 +118,7 @@ describe('Configuration Functions', () => {
             const outputPath = 'path/to/output';
             const resolvedPath = '/resolved/path/to/output';
 
-            (path.resolve as jest.Mock).mockReturnValue(resolvedPath);
+            jest.spyOn(path, 'resolve').mockImplementation(() => resolvedPath);
 
             const resultPath = setOutputResultsPath(outputPath);
             expect(resultPath).toBe(resolvedPath);
@@ -146,8 +154,8 @@ describe('Configuration Functions', () => {
                 },
             });
 
-            (path.resolve as jest.Mock).mockReturnValue(
-                '/mocked/path/to/package.json',
+            jest.spyOn(path, 'resolve').mockImplementation(() => 
+                '/mocked/path/to/package.json'
             );
             (fs.readFileSync as jest.Mock).mockReturnValue(mockPackageJson);
 
@@ -166,8 +174,8 @@ describe('Configuration Functions', () => {
                 },
             });
 
-            (path.resolve as jest.Mock).mockReturnValue(
-                '/mocked/path/to/package.json',
+            jest.spyOn(path, 'resolve').mockImplementation(() => 
+                '/mocked/path/to/package.json'
             );
             (fs.readFileSync as jest.Mock).mockReturnValue(mockPackageJson);
 

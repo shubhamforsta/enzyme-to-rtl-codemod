@@ -24,7 +24,6 @@ describe('runTestAndAnalyze', () => {
         const jestRunLogsPath = '/path/to/jestRunLogs';
         const rtlConvertedFilePath = '/path/to/rtlConvertedFile';
         const outputResultsPath = '/path/to/outputResults';
-        const originalTestCaseNum = 5;
         const summaryFile = '/path/to/summaryFile';
 
         const testPassMock = false;
@@ -75,8 +74,7 @@ describe('runTestAndAnalyze', () => {
             jestRunLogsPath,
             rtlConvertedFilePath,
             outputResultsPath,
-            originalTestCaseNum,
-            finalRun: true,
+            logLevel: 'verbose',
         });
 
         // Run command assertion
