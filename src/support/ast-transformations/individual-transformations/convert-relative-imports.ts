@@ -3,6 +3,32 @@ import { astLogger } from '../utils/ast-logger';
 import path from 'path';
 
 /**
+ * Calculates the relative path from one file to another
+ * @param relativeToPath - Absolute path of the file containing the import statement
+ * @param absolutePath - Absolute path of the file to be imported
+ * @returns A relative path that can be used in an import statement
+ */
+export const getRelativePathFromAbsolutePath = (
+    relativeToPath: string,
+    absolutePath: string,
+): string => {
+    // Get directory paths
+    const fromDir = path.dirname(relativeToPath);
+    const toPath = absolutePath;
+    
+    // Calculate relative path from the importing file to the file to be imported
+    let relativePath = path.relative(fromDir, toPath);
+    
+    // If the path doesn't start with a dot, add './'
+    if (!relativePath.startsWith('.') && relativePath !== '') {
+        relativePath = `./${relativePath}`;
+    }
+    
+    // Normalize path separators to ensure they're consistent
+    return relativePath.replace(/\\/g, '/');
+};
+
+/**
  * Convert relative imports to absolute imports in both import declarations and jest.mock calls.
  * @param j
  * @param root

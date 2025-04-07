@@ -1,4 +1,4 @@
-import { convertRelativeImports } from '../convert-relative-imports';
+import { convertRelativeImports, getRelativePathFromAbsolutePath } from '../convert-relative-imports';
 import jscodeshift from 'jscodeshift';
 
 describe('convertText', () => {
@@ -65,5 +65,52 @@ describe('convertText', () => {
         expect(transformedSource).toContain(
             'enzyme-to-rtl-codemod/src/support/ast-transformations/utils/ast-logger',
         );
+    });
+});
+
+describe('getRelativePathFromAbsolutePath', () => {
+    it('should return correct relative path when files are in different directories', () => {
+        const relativeToPath = '/Users/project/src/__tests__/Button.spec.tsx';
+        const absolutePath = '/Users/project/src/utils/test-file.ts';
+        
+        const result = getRelativePathFromAbsolutePath(relativeToPath, absolutePath);
+        
+        expect(result).toBe('../utils/test-file.ts');
+    });
+    
+    it('should return correct relative path when files are in the same directory', () => {
+        const relativeToPath = '/Users/project/src/utils/helper.ts';
+        const absolutePath = '/Users/project/src/utils/test-file.ts';
+        
+        const result = getRelativePathFromAbsolutePath(relativeToPath, absolutePath);
+        
+        expect(result).toBe('./test-file.ts');
+    });
+    
+    it('should return correct relative path when target is in a parent directory', () => {
+        const relativeToPath = '/Users/project/src/components/Button/Button.tsx';
+        const absolutePath = '/Users/project/src/utils/test-file.ts';
+        
+        const result = getRelativePathFromAbsolutePath(relativeToPath, absolutePath);
+        
+        expect(result).toBe('../../utils/test-file.ts');
+    });
+    
+    it('should return correct relative path for nested directories', () => {
+        const relativeToPath = '/Users/project/src/components/forms/inputs/TextInput.tsx';
+        const absolutePath = '/Users/project/src/components/Button/Button.test.tsx';
+        
+        const result = getRelativePathFromAbsolutePath(relativeToPath, absolutePath);
+        
+        expect(result).toBe('../../Button/Button.test.tsx');
+    });
+    
+    it('should handle paths with file name only', () => {
+        const relativeToPath = '/Users/project/src/utils/index.ts';
+        const absolutePath = '/Users/project/src/utils/test-file.ts';
+        
+        const result = getRelativePathFromAbsolutePath(relativeToPath, absolutePath);
+        
+        expect(result).toBe('./test-file.ts');
     });
 });
