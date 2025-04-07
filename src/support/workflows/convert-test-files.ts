@@ -16,7 +16,10 @@ import { attemptAndValidateTransformation } from '../llm-transformations/attempt
 import ora from 'ora';
 
 // Define the function type for LLM call
-export type LLMCallFunction = (arg: { messages: any[], tools: any[] }) => Promise<{ finish_reason: string, content: string, toolCalls: { id: string, type: string, function: { name: string, arguments: string } }[] }>;
+export type LLMCallFunction = (arg: { messages: any[], tools: any[] }) => Promise<{ 
+    finish_reason: string, 
+    message: { content: string, tool_calls: { id: string, type: string, function: { name: string, arguments: string } }[] },  
+}>;
 
 export interface TestResults {
     [filePath: string]: IndividualTestResult;
@@ -69,7 +72,7 @@ export const convertTestFiles = async ({
         filePaths = await discoverTestFiles(projectRoot, spinner);
     }
 
-    for (const filePath of filePaths.slice(10, 11)) {
+    for (const filePath of filePaths.slice(20, 40)) {
         try {
             // Initialize config
             config = initializeConfig({

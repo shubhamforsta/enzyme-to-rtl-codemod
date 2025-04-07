@@ -5,6 +5,9 @@ import { LLMCallFunction } from '../workflows/convert-test-files';
 import { getFunctions } from './utils/getFunctions';
 import get from 'lodash/get';
 import { Ora } from 'ora';
+import { createCustomLogger } from '../logger/logger';
+
+const llmCallandTransformLogger = createCustomLogger('LLM Call and Transform');
 
 const failedTestsTryAgainUserMessage = {
     role: 'user',
@@ -48,12 +51,13 @@ export const attemptAndValidateTransformation = async ({
     // Try up to 3 times to get a successful conversion
     while (attemptCounter <= 3) {
         attemptCounter = attemptCounter + 1;
-
+        llmCallandTransformLogger.verbose(`Attempt ${attemptCounter} - Calling LLM`);
         spinner.start(`Attempt ${attemptCounter} - Calling LLM`);
-        const { content, toolCalls } = await llmCallFunction({
+        const { message } = await llmCallFunction({
             messages,
             tools,
         });
+        const { content, tool_calls: toolCalls } = message;
         spinner.succeed();
 
         const naturalLanguageResponse = content;
@@ -62,6 +66,7 @@ export const attemptAndValidateTransformation = async ({
         if(naturalLanguageResponse && !calledFunctionArgs) {
             // LLM failed to call the function - it provided a text response instead
             // Add a message instructing it to use the function call format
+            llmCallandTransformLogger.verbose(`LLM Response : ${JSON.stringify(message)}`);
             spinner.fail('LLM failed to call the function');
             messages.push(failedToCallFunctionUserMessage);
             continue;
@@ -70,6 +75,8 @@ export const attemptAndValidateTransformation = async ({
             try {
                 LLMResponse = JSON.parse(calledFunctionArgs).file;
             } catch (error) {
+                llmCallandTransformLogger.verbose(`LLM Response : ${JSON.stringify(message)}`);
+                llmCallandTransformLogger.verbose(`Error : ${error}`);
                 spinner.fail('Failed to parse LLM response, probably due to context overflow');
                 break;
             }
@@ -97,9 +104,11 @@ export const attemptAndValidateTransformation = async ({
             finalResult = { testPass, ...restSummary };
 
             if(!testPass) {
+                // append the last message that includes the content and function call.
+                messages.push(message);
                 messages.push({
-                    role: 'function',
-                    id: calledFuntionId,
+                    role: 'tool',
+                    tool_call_id: calledFuntionId,
                     name: 'evaluateAndRun',
                     content: jestRunLogs,
                 });
