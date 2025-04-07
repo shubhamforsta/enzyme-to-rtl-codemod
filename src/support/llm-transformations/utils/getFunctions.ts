@@ -15,6 +15,27 @@ export const getFunctions = () => {
                 required: ['file'],
             },
         },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'requestForComponent',
+            description: 'Requests the content of a component file referenced in the test file. This helps provide additional context for converting Enzyme tests to React Testing Library by examining the actual component being tested.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: {
+                        type: 'string',
+                        description: 'The relative path to the component, exactly as it appears in the import statement.',
+                    },
+                    currentFilePath: {
+                        type: 'string',
+                        description: 'The absolute path of the current file where the import statement appears.',
+                    },
+                },
+                required: ['path', 'currentFilePath'],
+            },
+        },
     }];
 };
     

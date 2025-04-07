@@ -55,7 +55,9 @@ export const generateInitialPrompt = ({
 	6. Make sure import '@testing-library/jest-dom'; is present if not add it.
 	7. If any other components are used under find or other query methods, those queries need to be updated with what is available in DOM tree. check how the component rendered in enzyme under <component></component> tags.
 
-    IMPORTANT:
+    CONVERSION APPROACH:
+    - You will have multiple attempts to convert this file. If tests fail in the first attempt, you'll get error messages and can fix your solution.
+    - **First attempt the conversion using only the information provided in the test file and DOM tree - DO NOT request component files for the initial conversion.**
     - **Make sure same testing logic is preserved. snapshot tests should be snapshot tests, user interactions should be user interactions, query based tests should be query based tests.**
 	- *Do not modify anything else, unless it is required for the conversion.*
 	- *Preserve all abstracted functions as they are and use them in the converted file.*
@@ -70,6 +72,17 @@ export const generateInitialPrompt = ({
 	// 5. Ensure all text/strings are converted to lowercase regex expression. Example: screen.getByText(/your text here/i), screen.getByRole('button', {name: /your text here/i}).
 	// 6. When asserting that a DOM renders nothing, replace isEmptyRender()).toBe(true) with toBeEmptyDOMElement() by wrapping the component into a container. Example: expect(container).toBeEmptyDOMElement();.`;
 
+    const availableTools = `\nAvailable tools:
+    1. evaluateAndRun - Use this function to submit your converted test file for validation
+    2. requestForComponent - Use this ONLY when tests are failing and you need to understand how a component works to fix the conversion.
+       Only request components when absolutely necessary to resolve failing tests, not for initial conversion.
+       Provide two parameters:
+       - path: The relative import path exactly as it appears in the import statement (e.g., "../components/MyComponent")
+       - currentFilePath: The absolute path of the file where this import appears
+       
+       Note: When you receive a component file, it will include a comment at the top with its absolute path.
+       If you need to request components imported in that file, use the absolute path from the comment as the currentFilePath.`;
+
     // User additions to the prompt:
     const extendedPromptSection =
         extendPrompt && extendPrompt.length > 0
@@ -80,7 +93,9 @@ export const generateInitialPrompt = ({
                   .join('\n')
             : '';
 
-    const conclusion = `\nMOST IMPORTANT :: Please call evaluateAndRun function and pass the converted test file`;
+    const conclusion = `\nMOST IMPORTANT :: Please call evaluateAndRun function and pass the converted test file. Only Respond with the function call and nothing else, no natural response only function call.
+    
+If your conversion doesn't pass all tests in the first attempt, you'll have multiple chances to fix it. We'll provide test failure details to help you improve your solution with each attempt.`;
 
     // Test file code prompt
     const testFileCode = fs.readFileSync(filePath, 'utf-8');
@@ -92,6 +107,7 @@ export const generateInitialPrompt = ({
     const finalPrompt =
         contextSetting +
         mainRequest +
+        availableTools +
         extendedPromptSection +
         conclusion +
         testCaseCodePrompt +

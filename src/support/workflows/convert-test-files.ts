@@ -12,8 +12,9 @@ import {
     SummaryJson,
 } from './utils/generate-result-summary';
 import { discoverTestFiles } from '../file-discovery/test-file-discovery';
-import { attemptAndValidateTransformation } from '../llm-transformations/attempt-and-validate-transformation';
+import { attemptAndValidateTransformation, MAX_ATTEMPTS } from '../llm-transformations/attempt-and-validate-transformation';
 import ora from 'ora';
+import path from 'path';
 
 // Define the function type for LLM call
 export type LLMCallFunction = (arg: { messages: any[], tools: any[] }) => Promise<{ 
@@ -112,16 +113,30 @@ export const convertTestFiles = async ({
             extendPrompt: extendInitialPrompt,
         });
 
+        // Add test file absolute path to initialPrompt
+        const testFilePath = path.resolve(process.cwd(), filePath);
+        const promptWithFilePath = `${initialPrompt}\n\nThe absolute path of this test file is: ${testFilePath}`;
+
         const transformationResult = await attemptAndValidateTransformation({
             config,
             llmCallFunction,
-            initialPrompt,
+            initialPrompt: promptWithFilePath,
             spinner,
             logLevel
         });
 
         if (!transformationResult) {
-            throw new Error('Failed to transform test file');
+            spinner.fail(`Failed to transform test file after ${MAX_ATTEMPTS} attempts: ${filePath}`);
+            // Add a failed result to totalResults
+            const filePathClean = `${filePath.replace(/[<>:"/|?*.]+/g, '-')}`;
+            totalResults[filePathClean] = {
+                testPass: false,
+                failedTests: 0,
+                passedTests: 0,
+                totalTests: 0,
+                successRate: 0
+            };
+            continue;
         }
 
         // Store the result in the totalResults object
