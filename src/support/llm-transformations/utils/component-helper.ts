@@ -70,3 +70,62 @@ export const getComponentContent = (absolutePath: string): string | null => {
         return null;
     }
 };
+
+/**
+ * Updates a component file with new content to support testing
+ * Only makes minimal changes needed for testing, such as adding data-testid attributes
+ * 
+ * @param absolutePath - The absolute path to the component file
+ * @param newContent - The updated content for the component file
+ * @returns Object with success status and message
+ */
+export const updateComponentContent = (absolutePath: string, newContent: string): { success: boolean; message: string } => {
+    try {
+        // First check if the file exists
+        if (!fs.existsSync(absolutePath)) {
+            // Try adding common extensions if no extension was provided
+            const extensions = ['.js', '.jsx', '.ts', '.tsx'];
+            let fileFound = false;
+            
+            for (const ext of extensions) {
+                const pathWithExt = `${absolutePath}${ext}`;
+                if (fs.existsSync(pathWithExt)) {
+                    absolutePath = pathWithExt;
+                    fileFound = true;
+                    break;
+                }
+            }
+            
+            if (!fileFound) {
+                return { 
+                    success: false, 
+                    message: `Component file not found at: ${absolutePath}` 
+                };
+            }
+        }
+        
+        // Check if it's a directory
+        const stats = fs.statSync(absolutePath);
+        if (stats.isDirectory()) {
+            return { 
+                success: false, 
+                message: `Cannot update a directory: ${absolutePath}` 
+            };
+        }
+        
+        // Write the new content to the file
+        fs.writeFileSync(absolutePath, newContent, 'utf-8');
+        
+        componentHelperLogger.info(`Component file updated successfully at: ${absolutePath}`);
+        return { 
+            success: true, 
+            message: `Component file updated successfully at: ${absolutePath}` 
+        };
+    } catch (error) {
+        componentHelperLogger.error(`Error updating component file: ${error}`);
+        return { 
+            success: false, 
+            message: `Error updating component file: ${error instanceof Error ? error.message : String(error)}` 
+        };
+    }
+};

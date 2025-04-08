@@ -68,6 +68,39 @@ export const getFunctions = () => {
                 required: ['currentTestPath'],
             },
         },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'updateComponent',
+            description: 'Updates a component file to add testing-specific attributes. This should ONLY be used when absolutely necessary for testing purposes, when RTL conversion cannot be performed without modifying the component. The changes should be minimal and only add testing-related attributes like data-testid props. No functional or logical changes to the component should be made.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    path: {
+                        type: 'string',
+                        description: 'The relative path to the component file, exactly as it appears in the import statement.',
+                    },
+                    currentFilePath: {
+                        type: 'string',
+                        description: 'The absolute path of the current file where the import statement appears.',
+                    },
+                    absolutePath: {
+                        type: 'string',
+                        description: 'The absolute path to the component file. If provided, this will be used directly instead of resolving from path and currentFilePath.',
+                    },
+                    newContent: {
+                        type: 'string',
+                        description: 'The updated content for the component file. This should include the entire file content with minimal changes for testing purposes only. Only add data-testid attributes or similar test-specific props. DO NOT change the component logic, functionality, or styling.',
+                    },
+                    explanation: {
+                        type: 'string',
+                        description: 'A brief explanation of why this component update is necessary for testing and what changes were made. This helps reviewers understand the purpose of the modifications.',
+                    }
+                },
+                required: ['path', 'currentFilePath', 'newContent', 'explanation'],
+            },
+        },
     }];
 };
     

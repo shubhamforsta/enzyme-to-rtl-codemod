@@ -16,7 +16,7 @@ jest.mock('fs');
 jest.mock('path');
 
 // Import after mocking dependencies
-import { getFileFromRelativeImports, getComponentContent } from './component-helper';
+import { getFileFromRelativeImports, getComponentContent, updateComponentContent } from './component-helper';
 
 
 
@@ -281,6 +281,131 @@ describe('Component Helper', () => {
       expect(fs.existsSync).toHaveBeenCalledWith(absolutePath);
       expect(fs.statSync).toHaveBeenCalledWith(absolutePath);
       expect(fs.readFileSync).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateComponentContent', () => {
+    it('should update file content when file exists', () => {
+      // Arrange
+      const absolutePath = '/project/root/src/components/Button.tsx';
+      const newContent = 'export const Button = () => <button data-testid="test-button">Click me</button>';
+      
+      // Mock fs.existsSync and fs.statSync
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      (fs.statSync as jest.Mock).mockReturnValue({
+        isDirectory: () => false
+      });
+      
+      // Act
+      const result = updateComponentContent(absolutePath, newContent);
+      
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.message).toBe(`Component file updated successfully at: ${absolutePath}`);
+      expect(fs.existsSync).toHaveBeenCalledWith(absolutePath);
+      expect(fs.writeFileSync).toHaveBeenCalledWith(absolutePath, newContent, 'utf-8');
+    });
+    
+    it('should try different extensions when file without extension does not exist', () => {
+      // Arrange
+      const absolutePath = '/project/root/src/components/Button';
+      const newContent = 'export const Button = () => <button data-testid="test-button">Click me</button>';
+      
+      // Mock fs.existsSync to return false for the original path and true for one with extension
+      (fs.existsSync as jest.Mock).mockImplementation((path: string) => {
+        return path === '/project/root/src/components/Button.tsx';
+      });
+      
+      // Mock fs.statSync to return non-directory
+      (fs.statSync as jest.Mock).mockReturnValue({
+        isDirectory: () => false
+      });
+      
+      // Act
+      const result = updateComponentContent(absolutePath, newContent);
+      
+      // Assert
+      expect(result.success).toBe(true);
+      expect(result.message).toBe(`Component file updated successfully at: ${absolutePath}.tsx`);
+      expect(fs.existsSync).toHaveBeenCalledWith(absolutePath);
+      expect(fs.existsSync).toHaveBeenCalledWith(`${absolutePath}.js`);
+      expect(fs.existsSync).toHaveBeenCalledWith(`${absolutePath}.jsx`);
+      expect(fs.existsSync).toHaveBeenCalledWith(`${absolutePath}.ts`);
+      expect(fs.existsSync).toHaveBeenCalledWith(`${absolutePath}.tsx`);
+      expect(fs.writeFileSync).toHaveBeenCalledWith(`${absolutePath}.tsx`, newContent, 'utf-8');
+    });
+    
+    it('should return error when file does not exist with any extension', () => {
+      // Arrange
+      const absolutePath = '/project/root/src/components/Button';
+      const newContent = 'export const Button = () => <button data-testid="test-button">Click me</button>';
+      
+      // Mock fs.existsSync to return false for all paths
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+      
+      // Act
+      const result = updateComponentContent(absolutePath, newContent);
+      
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.message).toBe(`Component file not found at: ${absolutePath}`);
+      expect(fs.existsSync).toHaveBeenCalledWith(absolutePath);
+      expect(fs.existsSync).toHaveBeenCalledWith(`${absolutePath}.js`);
+      expect(fs.existsSync).toHaveBeenCalledWith(`${absolutePath}.jsx`);
+      expect(fs.existsSync).toHaveBeenCalledWith(`${absolutePath}.ts`);
+      expect(fs.existsSync).toHaveBeenCalledWith(`${absolutePath}.tsx`);
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+    });
+    
+    it('should return error when trying to update a directory', () => {
+      // Arrange
+      const absolutePath = '/project/root/src/components/Button';
+      const newContent = 'export const Button = () => <button data-testid="test-button">Click me</button>';
+      
+      // Mock fs.existsSync to return true
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      
+      // Mock fs.statSync to return directory
+      (fs.statSync as jest.Mock).mockReturnValue({
+        isDirectory: () => true
+      });
+      
+      // Act
+      const result = updateComponentContent(absolutePath, newContent);
+      
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.message).toBe(`Cannot update a directory: ${absolutePath}`);
+      expect(fs.existsSync).toHaveBeenCalledWith(absolutePath);
+      expect(fs.writeFileSync).not.toHaveBeenCalled();
+    });
+    
+    it('should return error when writeFileSync throws an error', () => {
+      // Arrange
+      const absolutePath = '/project/root/src/components/Button.tsx';
+      const newContent = 'export const Button = () => <button data-testid="test-button">Click me</button>';
+      
+      // Mock fs.existsSync to return true
+      (fs.existsSync as jest.Mock).mockReturnValue(true);
+      
+      // Mock fs.statSync to return non-directory
+      (fs.statSync as jest.Mock).mockReturnValue({
+        isDirectory: () => false
+      });
+      
+      // Mock fs.writeFileSync to throw an error
+      (fs.writeFileSync as jest.Mock).mockImplementation(() => {
+        throw new Error('Write error');
+      });
+      
+      // Act
+      const result = updateComponentContent(absolutePath, newContent);
+      
+      // Assert
+      expect(result.success).toBe(false);
+      expect(result.message).toBe('Error updating component file: Write error');
+      expect(fs.existsSync).toHaveBeenCalledWith(absolutePath);
+      expect(fs.writeFileSync).toHaveBeenCalledWith(absolutePath, newContent, 'utf-8');
     });
   });
 });

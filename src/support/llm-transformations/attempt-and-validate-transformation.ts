@@ -3,7 +3,7 @@ import { extractCodeContentToFile } from '../code-extractor/extract-code';
 import { IndividualTestResult, runTestAndAnalyze } from '../enzyme-helper/run-test-analysis';
 import { LLMCallFunction } from '../workflows/convert-test-files';
 import { getFunctions } from './utils/getFunctions';
-import { getFileFromRelativeImports, getComponentContent } from './utils/component-helper';
+import { getFileFromRelativeImports, getComponentContent, updateComponentContent } from './utils/component-helper';
 import { findRtlReferenceTests } from '../file-discovery/find-rtl-reference-tests';
 import { convertImportsToAbsolute } from '../ast-transformations/individual-transformations/convert-relative-imports';
 import get from 'lodash/get';
@@ -300,6 +300,79 @@ export const attemptAndValidateTransformation = async ({
                         tool_call_id: toolCallId,
                         name: 'requestForReferenceTests',
                         content: JSON.stringify({ error: `Failed to process reference tests request: ${error}` }),
+                    });
+                }
+            } else if (functionName === 'updateComponent') {
+                llmCallandTransformLogger.verbose('LLM requested component update');
+                spinner.start('Processing component update request');
+                
+                try {
+                    // Parse the arguments
+                    const args = JSON.parse(functionArgs);
+                    let absoluteFilePath = '';
+                    
+                    // If absolutePath is provided, use it directly
+                    if (args.absolutePath) {
+                        absoluteFilePath = args.absolutePath;
+                        llmCallandTransformLogger.verbose(`Requested component update for absolute path: ${absoluteFilePath}`);
+                    } else if (args.path && args.currentFilePath) {
+                        // Otherwise resolve from relative path and current file
+                        const componentPath = args.path;
+                        const currentFilePath = args.currentFilePath;
+                        
+                        llmCallandTransformLogger.verbose(`Requested component update for relative path: ${componentPath}`);
+                        llmCallandTransformLogger.verbose(`From file: ${currentFilePath}`);
+                        
+                        // Get the absolute path to the component
+                        absoluteFilePath = getFileFromRelativeImports(componentPath, currentFilePath);
+                    } else {
+                        throw new Error('Either absolutePath or both path and currentFilePath must be provided');
+                    }
+                    
+                    // Update the component file
+                    const newContent = args.newContent;
+                    const explanation = args.explanation;
+                    
+                    if (!newContent) {
+                        throw new Error('newContent must be provided');
+                    }
+                    
+                    if (!explanation) {
+                        throw new Error('explanation must be provided');
+                    }
+                    
+                    llmCallandTransformLogger.verbose(`Updating component file at: ${absoluteFilePath}`);
+                    llmCallandTransformLogger.verbose(`Explanation for changes: ${explanation}`);
+                    
+                    // Update the component file
+                    const updateResult = updateComponentContent(absoluteFilePath, newContent);
+                    
+                    // Add the response to messages
+                    messages.push({
+                        role: 'tool',
+                        tool_call_id: toolCallId,
+                        name: 'updateComponent',
+                        content: JSON.stringify(updateResult),
+                    });
+                    
+                    if (updateResult.success) {
+                        spinner.succeed('Component file updated successfully');
+                    } else {
+                        spinner.fail(`Failed to update component file: ${updateResult.message}`);
+                    }
+                } catch (error) {
+                    llmCallandTransformLogger.verbose(`Error updating component file: ${error}`);
+                    spinner.fail('Failed to update component file');
+                    
+                    // Add error response to messages
+                    messages.push({
+                        role: 'tool',
+                        tool_call_id: toolCallId,
+                        name: 'updateComponent',
+                        content: JSON.stringify({ 
+                            success: false, 
+                            message: `Failed to update component file: ${error instanceof Error ? error.message : String(error)}` 
+                        }),
                     });
                 }
             } else if (functionName === 'evaluateAndRun') {

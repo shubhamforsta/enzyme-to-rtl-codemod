@@ -111,7 +111,32 @@ export const generateInitialPrompt = ({
        - searchDepth: (Optional) How many directory levels to search (1 = same directory, 2 = parent directory, etc.)
        - keywords: (Optional) An array of specific RTL features you're interested in seeing examples of (e.g., ["userEvent", "waitFor"])
        
-       Using requestForReferenceTests does NOT count as an attempt.`;
+       Using requestForReferenceTests does NOT count as an attempt.
+       
+    4. updateComponent - Use this to update a component file to add testing-specific attributes (like data-testid).
+       ONLY use this when it's absolutely necessary and RTL conversion cannot be done without modifying the component.
+       
+       IMPORTANT NOTE ABOUT COMPONENT UPDATES:
+       - This should be used as a last resort when all other approaches have failed
+       - Make MINIMAL changes - only add test-specific attributes like data-testid
+       - DO NOT modify component logic, functionality, or styling
+       - Any changes made will affect the actual component files in the codebase
+       - Provide a clear explanation of why the change is necessary
+       
+       You can update components in two ways:
+       
+       A) For components referenced by relative imports:
+       - path: The relative import path exactly as it appears in the import statement (e.g., "../components/MyComponent")
+       - currentFilePath: The absolute path of the file where this import appears
+       - newContent: The updated component code with test attributes added
+       - explanation: Brief explanation of why this change is necessary and what was changed
+       
+       B) For components referenced by absolute paths:
+       - absolutePath: The complete absolute path to the component (e.g., "/Users/user/project/src/components/MyComponent.tsx")
+       - newContent: The updated component code with test attributes added
+       - explanation: Brief explanation of why this change is necessary and what was changed
+       
+       Using updateComponent does NOT count as an attempt.`;
 
     // User additions to the prompt:
     const extendedPromptSection =
