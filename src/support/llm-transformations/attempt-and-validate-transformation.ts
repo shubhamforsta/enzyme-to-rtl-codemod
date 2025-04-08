@@ -16,7 +16,7 @@ import jscodeshift from 'jscodeshift';
 const llmCallandTransformLogger = createCustomLogger('LLM Call and Transform');
 
 // Maximum number of attempts allowed for conversion
-export const MAX_ATTEMPTS = 6;
+export const MAX_ATTEMPTS = 5;
 
 /**
  * Wraps the LLM call function with logging when in verbose mode
@@ -126,6 +126,7 @@ export const attemptAndValidateTransformation = async ({
     logLevel?: string
 }) => {
     let attemptCounter = 1;
+    let previousSuccessRates: number[] = [];
     // Add attempt info to the initial prompt
     const promptWithAttemptInfo = `${initialPrompt}\n\nYou will have up to ${MAX_ATTEMPTS} attempts to successfully convert this test file. Please provide the best conversion possible with each attempt. Note: Using requestForComponent to gather information does not count as an attempt.`;
     
@@ -219,7 +220,7 @@ export const attemptAndValidateTransformation = async ({
                     // Add file path as a comment at the top of the content to help LLM with future requests
                     const contentWithPath = processedContent ? 
                         `// File: ${absoluteFilePath}\n${processedContent}` : 
-                        JSON.stringify({ error: 'File not found' });
+                        JSON.stringify({ error: 'File not found. Please try solving the tests without seeing this file content. Do not request for this file again.' });
                     
                     // Add the response to messages
                     messages.push({
@@ -335,6 +336,7 @@ export const attemptAndValidateTransformation = async ({
 
                 // update the result to return
                 finalResult = { testPass, ...restSummary };
+                previousSuccessRates.push(finalResult?.successRate || 0);
 
                 // Add the test run result to messages
                 messages.push({
@@ -352,7 +354,15 @@ export const attemptAndValidateTransformation = async ({
                 // If we had a successful evaluateAndRun, we're done
                 break;
             } else {
-                // Test failed, ask LLM to try again
+                // If repeated attempts are not improving the success rate, break
+                if(attemptCounter > 3) {
+                    if(previousSuccessRates[previousSuccessRates.length - 1] === previousSuccessRates[previousSuccessRates.length - 2] && 
+                       previousSuccessRates[previousSuccessRates.length - 2] === previousSuccessRates[previousSuccessRates.length - 3]) {
+                        spinner.fail('No improvement in success rate after 3 attempts with identical results, breaking');
+                        break;
+                    }
+                };
+                // Else, ask LLM to try again
                 messages.push(failedTestsTryAgainUserMessage());
                 messages.push(remainingAttemptsMessage(attemptsRemaining));
             }

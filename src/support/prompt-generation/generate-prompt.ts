@@ -81,6 +81,11 @@ export const generateInitialPrompt = ({
        Only request files when absolutely necessary to resolve failing tests, not for initial conversion.
        Using requestForFile does NOT count as an attempt - only evaluateAndRun calls count toward your attempt limit.
        
+       IMPORTANT NOTE ABOUT FILE REQUESTS:
+       - If a file doesn't exist, do NOT keep requesting it, assume the file doesn't exist and work around it.
+       - Focus on making tests pass with the available information. Sometimes you can infer the component structure from the test itself.
+       - Prefer to solve problems without requesting many files, especially when the test failures are clear.
+       
        IMPORTANT NOTE ABOUT IMPORTS: The file content you receive will have all relative imports converted to absolute imports for easier reference. You can directly copy these import paths into your code if needed.
        
        You can request files in two ways:
