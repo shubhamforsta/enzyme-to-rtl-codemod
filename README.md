@@ -49,8 +49,11 @@ import {
 
 // Example implementation of the LLM call function
 const callLLMFunctionExample: LLMCallFunction = async (
-    prompt: string,
-): Promise<string> => {
+    arg: { messages: any[], tools: any[] }
+): Promise<{ 
+    finish_reason: string, 
+    message: { content: string, tool_calls: any[] },  
+}> => {
     // Step 1: Configure LLM parameters
     const config = {
         // Add your LLM configuration parameters here
@@ -58,7 +61,7 @@ const callLLMFunctionExample: LLMCallFunction = async (
     };
 
     // Step 2: Call the LLM with the provided prompt
-    const LLLresponse = await callLLMapi(config, prompt);
+    const LLLresponse = await callLLMapi(config, arg);
 
     // Step 3: Return the result
     return LLLresponse;
@@ -66,13 +69,25 @@ const callLLMFunctionExample: LLMCallFunction = async (
 
 // Implement convertTestFiles function call with your arguments
 const convertFiles = async (filePaths: string[]) => {
+    // Example paths to utility files that tests might need to import
+    const additionalReferenceFiles = [
+        path.resolve(__dirname, 'src/utils/test-helpers.ts'),
+        path.resolve(__dirname, 'src/utils/test-utils/render.tsx')
+    ];
+    
+    // Additional prompt instructions for the LLM
+    const additionalPrompts = [
+        "Make sure to import the custom render function from the test-utils folder when needed.",
+        "Some tests use a wrapper utility from test-helpers.ts, be sure to import it properly."
+    ];
+
     const results = await convertTestFiles({
         filePaths: filePaths,
         jestBinaryPath: 'npx jest', // this command should be able to run one jest test file, e.g. `npx jest <filePath>`
-        outputResultsPath: 'ai-conversion-testing/temp',
         testId: '<your_custom_test_id_attribute', // defaults to RTL `data-testid` attribute
         llmCallFunction: callLLMFunctionExample,
-        enableFeedbackStep: true,
+        additionalReferenceFiles, // Pass reference files that might be needed for imports
+        extendInitialPrompt: additionalPrompts // Extend the prompt with additional instructions
     });
 
     console.log('Results:', results);
@@ -216,9 +231,50 @@ const convertTestFile = async (filePath: string): Promise<void> => {
 convertTestFile('<testPath1>');
 ```
 
-## 3. Run conversion flow with cli and config for one file or more files:
+## 3. Run conversion flow with CLI:
 
-### TODO
+You can also use the provided CLI tool to run the conversion:
+
+```bash
+# Install globally
+npm install -g @slack/enzyme-to-rtl-codemod
+
+# Or use npx directly
+npx @slack/enzyme-to-rtl-codemod [options] [file-paths...]
+```
+
+### CLI Options
+
+```
+Options:
+  --log-level <level>         Set log level (info|verbose) [default: info]
+  --jest-binary <path>        Path to Jest binary [default: npx jest]
+  --test-id <attribute>       Test ID attribute [default: data-testid]
+  --additional-ref <path>     Path to additional reference file (can be used multiple times)
+  --additional-prompt <text>  Additional prompt text for LLM (can be used multiple times)
+  --help, -h                  Show this help message
+```
+
+### CLI Examples
+
+```bash
+# Convert a single test file
+npx @slack/enzyme-to-rtl-codemod src/__tests__/Button.spec.tsx
+
+# Convert with additional reference files
+npx @slack/enzyme-to-rtl-codemod --additional-ref ./src/utils/test-helpers.ts src/__tests__/Button.spec.tsx
+
+# Add custom prompt instructions
+npx @slack/enzyme-to-rtl-codemod --additional-prompt "Import wrapper from test-helpers" src/__tests__/Button.spec.tsx
+
+# Multiple reference files and prompts
+npx @slack/enzyme-to-rtl-codemod \
+  --additional-ref ./src/utils/test-helpers.ts \
+  --additional-ref ./src/utils/test-utils/render.tsx \
+  --additional-prompt "Import wrapper from test-helpers" \
+  --additional-prompt "Use custom render from test-utils" \
+  src/__tests__/Button.spec.tsx
+```
 
 # Output results
 
@@ -240,7 +296,7 @@ Example:
 
 # NOTE:
 
-1. This package will only work if your test files use Enzyme `mount` and `shallow` imported directly from the Enzyme package. If your project uses helper methods to wrap Enzyme’s mount or shallow, this package may not work as expected.
+1. This package will only work if your test files use Enzyme `mount` and `shallow` imported directly from the Enzyme package. If your project uses helper methods to wrap Enzyme's mount or shallow, this package may not work as expected.
 
 ```ts
 import { mount } from 'enzyme';

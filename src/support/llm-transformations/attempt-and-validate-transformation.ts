@@ -4,11 +4,14 @@ import { IndividualTestResult, runTestAndAnalyze } from '../enzyme-helper/run-te
 import { LLMCallFunction } from '../workflows/convert-test-files';
 import { getFunctions } from './utils/getFunctions';
 import { getFileFromRelativeImports, getComponentContent } from './utils/component-helper';
+import { findRtlReferenceTests } from '../file-discovery/find-rtl-reference-tests';
+import { convertImportsToAbsolute } from '../ast-transformations/individual-transformations/convert-relative-imports';
 import get from 'lodash/get';
 import { Ora } from 'ora';
 import { createCustomLogger } from '../logger/logger';
 import fs from 'fs';
 import path from 'path';
+import jscodeshift from 'jscodeshift';
 
 const llmCallandTransformLogger = createCustomLogger('LLM Call and Transform');
 
@@ -56,7 +59,16 @@ const withLogging = (
     };
 };
 
-const failedTestsTryAgainUserMessage = (attemptsRemaining: number) => ({
+const remainingAttemptsMessage = (attemptsRemaining: number) => {
+    return {
+        role: 'user',
+        content: attemptsRemaining > 1 
+            ? `You have ${attemptsRemaining} attempts remaining to fix these issues.` 
+            : `THIS IS YOUR FINAL ATTEMPT! Please provide your best conversion even if some tests might still fail.`
+    }
+};
+
+const failedTestsTryAgainUserMessage = () => ({
     role: 'user',
     content: `The React Testing Library code converted from Enzyme tests is failing. 
     Please carefully analyze the failures by looking at the evaluateAndRun function results.
@@ -66,11 +78,7 @@ const failedTestsTryAgainUserMessage = (attemptsRemaining: number) => ({
     3. Syntax errors or runtime exceptions
     4. Async testing issues that might require waitFor or findBy queries
     
-    Only if you cannot diagnose the issue from the test failures alone, you may use requestForComponent to examine the actual component implementation.
-    
-    ${attemptsRemaining > 1 
-        ? `You have ${attemptsRemaining} attempts remaining to fix these issues.` 
-        : `THIS IS YOUR FINAL ATTEMPT! Please provide your best conversion even if some tests might still fail.`}
+    Only if you cannot diagnose the issue from the test failures alone, you may use requestForFile to examine the actual implementation of any files mentioned in error messages or imports. Look for files with absolute paths in error messages or examine component files needed to understand the test.
     
     Fix all identified issues and call evaluateAndRun function with corrected version that passes all tests. Remember to maintain the same test structure and number of test cases while fixing the issues.`
 });
@@ -81,6 +89,27 @@ const failedToCallFunctionUserMessage = {
     Do not provide explanations, analysis, or any other text outside of the function call.
     The evaluateAndRun function is the only way to submit your converted code for validation.
     Please try again and ensure you're calling the evaluateAndRun function with the complete test file.`
+};
+
+// Helper function to convert relative imports to absolute in file content
+const processFileImports = (fileContent: string, filePath: string): string => {
+    try {
+        if (!fileContent) return fileContent;
+        
+        // Use jscodeshift to parse and transform the content
+        const j = jscodeshift.withParser('tsx');
+        const root = j(fileContent);
+        
+        // Convert relative imports to absolute
+        convertImportsToAbsolute(j, root, filePath);
+        
+        // Return the transformed source
+        return root.toSource();
+    } catch (error) {
+        llmCallandTransformLogger.verbose(`Error processing imports in file: ${error}`);
+        // Return original content if transformation fails
+        return fileContent;
+    }
 };
 
 export const attemptAndValidateTransformation = async ({
@@ -96,9 +125,9 @@ export const attemptAndValidateTransformation = async ({
     spinner: Ora,
     logLevel?: string
 }) => {
-    let attemptCounter = 0;
+    let attemptCounter = 1;
     // Add attempt info to the initial prompt
-    const promptWithAttemptInfo = `${initialPrompt}\n\nYou will have up to ${MAX_ATTEMPTS} attempts to successfully convert this test file. Please provide the best conversion possible with each attempt.`;
+    const promptWithAttemptInfo = `${initialPrompt}\n\nYou will have up to ${MAX_ATTEMPTS} attempts to successfully convert this test file. Please provide the best conversion possible with each attempt. Note: Using requestForComponent to gather information does not count as an attempt.`;
     
     const messages: any[] = [{ role: 'system', content: promptWithAttemptInfo }];
     const tools = getFunctions();
@@ -108,18 +137,24 @@ export const attemptAndValidateTransformation = async ({
     const loggingLLMCallFunction = withLogging(llmCallFunction, logLevel, config.rtlConvertedFilePath);
 
     // Try up to MAX_ATTEMPTS times to get a successful conversion
-    while (attemptCounter < MAX_ATTEMPTS) {
-        attemptCounter = attemptCounter + 1;
+    while (attemptCounter <= MAX_ATTEMPTS) {
         const attemptsRemaining = MAX_ATTEMPTS - attemptCounter;
         
         llmCallandTransformLogger.verbose(`Attempt ${attemptCounter} of ${MAX_ATTEMPTS} - Calling LLM`);
         spinner.start(`Attempt ${attemptCounter} of ${MAX_ATTEMPTS} - Calling LLM`);
+        let response;
+
+        try {
+            response = await loggingLLMCallFunction({
+                messages,
+                tools,
+            });
+        } catch (error) {
+            spinner.fail(`Failed to call LLM: ${error}`);
+            break;
+        }
         
-        const { message } = await loggingLLMCallFunction({
-            messages,
-            tools,
-        });
-        
+        const message = response.message;
         const { content, tool_calls: toolCalls } = message;
         spinner.succeed();
 
@@ -138,7 +173,6 @@ export const attemptAndValidateTransformation = async ({
 
         // Process all tool calls in sequence
         let hasEvaluateAndRunCall = false;
-        let evaluateAndRunResult = null;
 
         // Add the message with tool calls to our conversation history
         messages.push(message);
@@ -149,54 +183,127 @@ export const attemptAndValidateTransformation = async ({
             const functionArgs = get(toolCall, 'function.arguments');
             const toolCallId = get(toolCall, 'id');
             
-            if (functionName === 'requestForComponent') {
-                llmCallandTransformLogger.verbose('LLM requested component content');
-                spinner.start('Processing component request');
+            if (functionName === 'requestForFile') {
+                llmCallandTransformLogger.verbose('LLM requested file content');
+                spinner.start('Processing file request');
                 
                 try {
-                    // Parse the arguments to get the component path and current file path
+                    // Parse the arguments
                     const args = JSON.parse(functionArgs);
-                    const componentPath = args.path;
-                    const currentFilePath = args.currentFilePath;
+                    let absoluteFilePath = '';
                     
-                    llmCallandTransformLogger.verbose(`Requested component path: ${componentPath}`);
-                    llmCallandTransformLogger.verbose(`From file: ${currentFilePath}`);
+                    // If absolutePath is provided, use it directly
+                    if (args.absolutePath) {
+                        absoluteFilePath = args.absolutePath;
+                        llmCallandTransformLogger.verbose(`Requested absolute file path: ${absoluteFilePath}`);
+                    } else {
+                        // Otherwise resolve from relative path and current file
+                        const componentPath = args.path;
+                        const currentFilePath = args.currentFilePath;
+                        
+                        llmCallandTransformLogger.verbose(`Requested relative path: ${componentPath}`);
+                        llmCallandTransformLogger.verbose(`From file: ${currentFilePath}`);
+                        
+                        // Get the absolute path to the file
+                        absoluteFilePath = getFileFromRelativeImports(componentPath, currentFilePath);
+                    }
                     
-                    // Get the absolute path to the component
-                    // We use the currentFilePath as the base path
-                    const absoluteComponentPath = getFileFromRelativeImports(componentPath, currentFilePath);
+                    // Get the file content
+                    const fileContent = getComponentContent(absoluteFilePath);
                     
-                    // Get the component content
-                    const componentContent = getComponentContent(absoluteComponentPath);
+                    // Process imports in the file content to make them absolute
+                    const processedContent = fileContent ? 
+                        processFileImports(fileContent, absoluteFilePath) : 
+                        null;
                     
                     // Add file path as a comment at the top of the content to help LLM with future requests
-                    const contentWithPath = componentContent ? 
-                        `// File: ${absoluteComponentPath}\n${componentContent}` : 
-                        JSON.stringify({ error: 'Component file not found' });
+                    const contentWithPath = processedContent ? 
+                        `// File: ${absoluteFilePath}\n${processedContent}` : 
+                        JSON.stringify({ error: 'File not found' });
                     
                     // Add the response to messages
                     messages.push({
                         role: 'tool',
                         tool_call_id: toolCallId,
-                        name: 'requestForComponent',
+                        name: 'requestForFile',
                         content: contentWithPath,
                     });
                     
-                    spinner.succeed('Component content retrieved');
+                    spinner.succeed('File content retrieved');
                 } catch (error) {
-                    llmCallandTransformLogger.verbose(`Error processing component request: ${error}`);
-                    spinner.fail('Failed to process component request');
+                    llmCallandTransformLogger.verbose(`Error processing file request: ${error}`);
+                    spinner.fail('Failed to process file request');
                     
                     // Add error response to messages
                     messages.push({
                         role: 'tool',
                         tool_call_id: toolCallId,
-                        name: 'requestForComponent',
-                        content: JSON.stringify({ error: `Failed to process component request: ${error}` }),
+                        name: 'requestForFile',
+                        content: JSON.stringify({ error: `Failed to process file request: ${error}` }),
+                    });
+                }
+            } else if (functionName === 'requestForReferenceTests') {
+                llmCallandTransformLogger.verbose('LLM requested reference tests');
+                spinner.start('Searching for RTL reference tests');
+                
+                try {
+                    // Parse the arguments
+                    const args = JSON.parse(functionArgs);
+                    const currentTestPath = args.currentTestPath;
+                    const searchDepth = args.searchDepth || 2;
+                    const keywords = args.keywords || [];
+                    
+                    llmCallandTransformLogger.verbose(`Searching for RTL tests near: ${currentTestPath}`);
+                    llmCallandTransformLogger.verbose(`Search depth: ${searchDepth}`);
+                    
+                    // Find RTL reference tests - pass the logger
+                    const referenceTests = findRtlReferenceTests(
+                        currentTestPath, 
+                        searchDepth, 
+                        keywords
+                    );
+                    
+                    // Format the response
+                    let response = '';
+                    if (referenceTests.length === 0) {
+                        response = JSON.stringify({ error: 'No RTL reference tests found in nearby directories' });
+                    } else {
+                        response = `Found ${referenceTests.length} RTL reference test(s):\n\n`;
+                        
+                        referenceTests.forEach((test, index) => {
+                            // Process imports in the reference test to make them absolute
+                            const processedContent = processFileImports(test.content, test.path);
+                            
+                            response += `--- Reference Test ${index + 1}: ${test.path} ---\n\n`;
+                            response += processedContent;
+                            response += '\n\n';
+                        });
+                    }
+                    
+                    // Add the response to messages
+                    messages.push({
+                        role: 'tool',
+                        tool_call_id: toolCallId,
+                        name: 'requestForReferenceTests',
+                        content: response,
+                    });
+                    
+                    spinner.succeed(`Found ${referenceTests.length} RTL reference tests`);
+                } catch (error) {
+                    llmCallandTransformLogger.verbose(`Error processing reference tests request: ${error}`);
+                    spinner.fail('Failed to process reference tests request');
+                    
+                    // Add error response to messages
+                    messages.push({
+                        role: 'tool',
+                        tool_call_id: toolCallId,
+                        name: 'requestForReferenceTests',
+                        content: JSON.stringify({ error: `Failed to process reference tests request: ${error}` }),
                     });
                 }
             } else if (functionName === 'evaluateAndRun') {
                 hasEvaluateAndRunCall = true;
+                attemptCounter = attemptCounter + 1;
                 
                 let LLMResponse = '';
                 try {
@@ -246,7 +353,8 @@ export const attemptAndValidateTransformation = async ({
                 break;
             } else {
                 // Test failed, ask LLM to try again
-                messages.push(failedTestsTryAgainUserMessage(attemptsRemaining));
+                messages.push(failedTestsTryAgainUserMessage());
+                messages.push(remainingAttemptsMessage(attemptsRemaining));
             }
         } else if (toolCalls && toolCalls.length > 0) {
             // We had tool calls but no evaluateAndRun, continue to get the next response

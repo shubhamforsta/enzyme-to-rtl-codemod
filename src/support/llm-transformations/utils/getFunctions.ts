@@ -3,13 +3,13 @@ export const getFunctions = () => {
         type: 'function',
         function: {
             name: 'evaluateAndRun',
-            description: 'Evaluates and runs the converted React Testing Library test file. This function will take your converted code, save it to a file, and run Jest tests on it to validate that the conversion was successful. You must use this function to submit your final converted code.',
+            description: 'Evaluates and runs the converted React Testing Library test file. This function will take your converted code, save it to a file, and run Jest tests on it to validate that the conversion was successful. You must use this function to submit your final converted code. Note: You can use absolute imports in your code - they will be automatically converted to appropriate relative imports when saved.',
             parameters: {
                 type: 'object',
                 properties: {
                     file: {
                         type: 'string',
-                        description: 'The complete React Testing Library converted code that should run with Jest without manual changes. This should be the entire test file content including all imports, test cases, and any helper functions. The code should follow React Testing Library best practices and correctly implement all the test cases from the original Enzyme file.',
+                        description: 'The complete React Testing Library converted code that should run with Jest without manual changes. This should be the entire test file content including all imports, test cases, and any helper functions. The code should follow React Testing Library best practices and correctly implement all the test cases from the original Enzyme file. You can use absolute import paths copied from reference files - they will be automatically converted to relative paths.',
                     },
                 },
                 required: ['file'],
@@ -19,21 +19,53 @@ export const getFunctions = () => {
     {
         type: 'function',
         function: {
-            name: 'requestForComponent',
-            description: 'Requests the content of a component file referenced in the test file. This helps provide additional context for converting Enzyme tests to React Testing Library by examining the actual component being tested.',
+            name: 'requestForFile',
+            description: 'Requests the content of any file that might be needed to understand test failures or component behavior. This can include component files, utility files, constants, hooks, or any other files referenced in error messages or test code. Note: The file content you receive will have all relative imports converted to absolute imports for easier reference.',
             parameters: {
                 type: 'object',
                 properties: {
                     path: {
                         type: 'string',
-                        description: 'The relative path to the component, exactly as it appears in the import statement.',
+                        description: 'The relative path to the file, exactly as it appears in the import statement.',
                     },
                     currentFilePath: {
                         type: 'string',
                         description: 'The absolute path of the current file where the import statement appears.',
                     },
+                    absolutePath: {
+                        type: 'string',
+                        description: 'The absolute path to the file. If provided, this will be used directly instead of resolving from path and currentFilePath. Use this for files mentioned in error logs with absolute paths.',
+                    }
                 },
                 required: ['path', 'currentFilePath'],
+            },
+        },
+    },
+    {
+        type: 'function',
+        function: {
+            name: 'requestForReferenceTests',
+            description: 'Searches for existing React Testing Library tests in nearby directories that can be used as reference for understanding patterns and conventions in the codebase. Note: The reference test examples you receive will have all relative imports converted to absolute imports for easier reference. You can directly copy these import paths into your code if needed.',
+            parameters: {
+                type: 'object',
+                properties: {
+                    currentTestPath: {
+                        type: 'string',
+                        description: 'The absolute path of the current test file being converted. This will be used as the starting point for finding nearby RTL tests.',
+                    },
+                    searchDepth: {
+                        type: 'integer',
+                        description: 'How many directory levels up to search (1 = same directory, 2 = parent directory, etc.). Default is 2.',
+                    },
+                    keywords: {
+                        type: 'array',
+                        items: {
+                            type: 'string'
+                        },
+                        description: 'Optional keywords to filter test files by content, such as specific RTL functions or patterns you want to learn about.',
+                    }
+                },
+                required: ['currentTestPath'],
             },
         },
     }];

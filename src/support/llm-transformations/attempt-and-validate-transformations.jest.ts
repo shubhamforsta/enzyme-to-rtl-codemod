@@ -130,8 +130,8 @@ describe('attemptAndValidateTransformation', () => {
               id: 'call1',
               type: 'function',
               function: {
-                name: 'requestForComponent',
-                arguments: JSON.stringify({ path: '../Component' })
+                name: 'requestForFile',
+                arguments: JSON.stringify({ path: '../Component', currentFilePath: '/path/to/converted-test.tsx' })
               }
             }
           ]
@@ -195,16 +195,16 @@ describe('attemptAndValidateTransformation', () => {
               id: 'call1',
               type: 'function',
               function: {
-                name: 'requestForComponent',
-                arguments: JSON.stringify({ path: '../Component1' })
+                name: 'requestForFile',
+                arguments: JSON.stringify({ path: '../Component1', currentFilePath: '/path/to/converted-test.tsx' })
               }
             },
             {
               id: 'call2',
               type: 'function',
               function: {
-                name: 'requestForComponent',
-                arguments: JSON.stringify({ path: '../Component2' })
+                name: 'requestForFile',
+                arguments: JSON.stringify({ path: '../Component2', currentFilePath: '/path/to/converted-test.tsx' })
               }
             },
             {

@@ -73,15 +73,40 @@ export const generateInitialPrompt = ({
 	// 6. When asserting that a DOM renders nothing, replace isEmptyRender()).toBe(true) with toBeEmptyDOMElement() by wrapping the component into a container. Example: expect(container).toBeEmptyDOMElement();.`;
 
     const availableTools = `\nAvailable tools:
-    1. evaluateAndRun - Use this function to submit your converted test file for validation
-    2. requestForComponent - Use this ONLY when tests are failing and you need to understand how a component works to fix the conversion.
-       Only request components when absolutely necessary to resolve failing tests, not for initial conversion.
-       Provide two parameters:
+    1. evaluateAndRun - Use this function to submit your converted test file for validation. Each evaluateAndRun call counts as one attempt.
+       
+       IMPORTANT NOTE ABOUT IMPORTS: You can use absolute imports in your submitted code. Our system will automatically convert absolute imports to appropriate relative imports when saving the file. This makes it easier for you to reuse import paths from example files without having to calculate relative paths.
+    
+    2. requestForFile - Use this ONLY when tests are failing and you need to understand how components, utilities or other files work to fix the conversion.
+       Only request files when absolutely necessary to resolve failing tests, not for initial conversion.
+       Using requestForFile does NOT count as an attempt - only evaluateAndRun calls count toward your attempt limit.
+       
+       IMPORTANT NOTE ABOUT IMPORTS: The file content you receive will have all relative imports converted to absolute imports for easier reference. You can directly copy these import paths into your code if needed.
+       
+       You can request files in two ways:
+       
+       A) For files referenced by relative imports:
        - path: The relative import path exactly as it appears in the import statement (e.g., "../components/MyComponent")
        - currentFilePath: The absolute path of the file where this import appears
        
-       Note: When you receive a component file, it will include a comment at the top with its absolute path.
-       If you need to request components imported in that file, use the absolute path from the comment as the currentFilePath.`;
+       B) For files mentioned in error logs with absolute paths:
+       - absolutePath: The complete absolute path to the file (e.g., "/Users/user/project/src/components/MyComponent.tsx")
+       
+       Note: When you receive a file, it will include a comment at the top with its absolute path.
+       If you need to request more files imported in that file, use the absolute path from the comment as the currentFilePath.
+       
+    3. requestForReferenceTests - Use this to find existing React Testing Library tests in the codebase that can serve as reference examples.
+       This is helpful if you're unsure about test patterns, conventions, or specific RTL usage in this codebase.
+       This tool will search for RTL tests in nearby directories and return up to 3 examples.
+       
+       IMPORTANT NOTE ABOUT IMPORTS: The reference test examples you receive will have all relative imports converted to absolute imports for easier reference. You can directly copy these import paths into your code if needed.
+       
+       Parameters:
+       - currentTestPath: The absolute path of the current test file being converted (provided at the beginning of this conversation)
+       - searchDepth: (Optional) How many directory levels to search (1 = same directory, 2 = parent directory, etc.)
+       - keywords: (Optional) An array of specific RTL features you're interested in seeing examples of (e.g., ["userEvent", "waitFor"])
+       
+       Using requestForReferenceTests does NOT count as an attempt.`;
 
     // User additions to the prompt:
     const extendedPromptSection =
@@ -95,7 +120,11 @@ export const generateInitialPrompt = ({
 
     const conclusion = `\nMOST IMPORTANT :: Please call evaluateAndRun function and pass the converted test file. Only Respond with the function call and nothing else, no natural response only function call.
     
-If your conversion doesn't pass all tests in the first attempt, you'll have multiple chances to fix it. We'll provide test failure details to help you improve your solution with each attempt.`;
+If your conversion doesn't pass all tests in the first attempt, you'll have multiple chances to fix it. We'll provide test failure details to help you improve your solution with each attempt.
+
+Important: Only evaluateAndRun calls count as attempts. You can use requestForFile as needed to gather information without using up your attempt count.
+
+In final attempt, you have to provide the best conversion possible even if some tests might still fail.`;
 
     // Test file code prompt
     const testFileCode = fs.readFileSync(filePath, 'utf-8');

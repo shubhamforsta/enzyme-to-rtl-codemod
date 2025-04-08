@@ -15,6 +15,7 @@ import { discoverTestFiles } from '../file-discovery/test-file-discovery';
 import { attemptAndValidateTransformation, MAX_ATTEMPTS } from '../llm-transformations/attempt-and-validate-transformation';
 import ora from 'ora';
 import path from 'path';
+import { getRelativePathFromAbsolutePath } from '../ast-transformations/individual-transformations/convert-relative-imports';
 
 // Define the function type for LLM call
 export type LLMCallFunction = (arg: { messages: any[], tools: any[] }) => Promise<{ 
@@ -25,6 +26,20 @@ export type LLMCallFunction = (arg: { messages: any[], tools: any[] }) => Promis
 export interface TestResults {
     [filePath: string]: IndividualTestResult;
 }
+
+/**
+ * Reads file content from a given absolute path
+ * @param filePath - Absolute path to the file
+ * @returns File content as string or null if file doesn't exist
+ */
+const readFileContent = (filePath: string): string | null => {
+    try {
+        return fs.readFileSync(filePath, 'utf-8');
+    } catch (error) {
+        console.error(`Failed to read file: ${filePath}`, error);
+        return null;
+    }
+};
 
 /**
  * Converts test files and processes them using the specified parameters.
@@ -41,6 +56,8 @@ export interface TestResults {
  * @param {string} params.jestBinaryPath - Path to the Jest binary for running tests.
  * @param {string} params.testId - Optional identifier getByTestId(testId) queries.
  * @param {LLMCallFunction} params.llmCallFunction - Function for making LLM API calls to process the tests.
+ * @param {string[]} [params.extendInitialPrompt] - Optional additional prompt instructions to include.
+ * @param {string[]} [params.additionalReferenceFiles] - Optional array of absolute paths to reference files that might be needed for transformations.
  * @returns {Promise<SummaryJson>} A promise that resolves to the generated summary JSON object containing the results of the test conversions.
  */
 export const convertTestFiles = async ({
@@ -50,6 +67,7 @@ export const convertTestFiles = async ({
     testId = 'data-testid',
     llmCallFunction,
     extendInitialPrompt,
+    additionalReferenceFiles = [],
 }: {
     filePaths?: string[];
     logLevel?: string;
@@ -57,6 +75,7 @@ export const convertTestFiles = async ({
     testId?: string;
     llmCallFunction: LLMCallFunction;
     extendInitialPrompt?: string[];
+    additionalReferenceFiles?: string[];
 }): Promise<SummaryJson> => {
     // Initialize total results object to collect results
     const totalResults: TestResults = {};
@@ -115,7 +134,34 @@ export const convertTestFiles = async ({
 
         // Add test file absolute path to initialPrompt
         const testFilePath = path.resolve(process.cwd(), filePath);
-        const promptWithFilePath = `${initialPrompt}\n\nThe absolute path of this test file is: ${testFilePath}`;
+        let promptWithFilePath = `${initialPrompt}\n\nThe absolute path of this test file is: ${testFilePath}`;
+        
+        // Process additional reference files
+        if (additionalReferenceFiles.length > 0) {
+            spinner.start('Processing additional reference files');
+            let referenceFilesPrompt = '\n\nAdditional reference files that may be needed for import:';
+            
+            for (const referenceFilePath of additionalReferenceFiles) {
+                const referenceFilePathResolved = path.resolve(process.cwd(), referenceFilePath);
+                // Read file content
+                const fileContent = readFileContent(referenceFilePathResolved);
+                if (!fileContent) continue;
+                
+                // Calculate relative path from test file to reference file
+                const relativePath = getRelativePathFromAbsolutePath(testFilePath, referenceFilePathResolved);
+                
+                // Format without extension for import statements
+                const formattedRelativePath = relativePath.replace(/\.(ts|tsx|js|jsx)$/, '');
+                
+                // Add to prompt
+                referenceFilesPrompt += `\n\nFile: ${path.basename(referenceFilePath)}`;
+                referenceFilesPrompt += `\nRelative import path: ${formattedRelativePath}`;
+                referenceFilesPrompt += `\nContent:\n\`\`\`typescript\n${fileContent}\n\`\`\``;
+            }
+            
+            promptWithFilePath += referenceFilesPrompt;
+            spinner.succeed('Added reference files to prompt');
+        }
 
         const transformationResult = await attemptAndValidateTransformation({
             config,
