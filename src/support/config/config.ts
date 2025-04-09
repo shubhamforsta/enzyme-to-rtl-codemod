@@ -168,7 +168,6 @@ const initializePerFileConfig = (filePath: string): void => {
     config.enzymeMountAdapterFilePath = `${config.outputResultsPath}/enzyme-mount-adapter.js`;
     config.enzymeImportsPresent = checkIfEnzyme(filePath);
 
-    // Attempt 1
     config.rtlConvertedFilePath = `${config.outputResultsPath}/rtl-converted-${config.filePathTitle}${config.filePathExtension}`;
     config.jestRunLogsFilePath = `${config.outputResultsPath}/jest-run-logs-${config.filePathTitle}.md`;
 

@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 import { initializeConfig, Config } from '../config/config';
 import { getReactCompDom } from '../enzyme-helper/get-dom-enzyme';
 import {
@@ -6,6 +7,8 @@ import {
 } from '../prompt-generation/generate-prompt';
 import {
     IndividualTestResult,
+    updateOriginalFileAndRunTests,
+    cleanupSnapshots
 } from '../enzyme-helper/run-test-analysis';
 import {
     generateSummaryJson,
@@ -14,7 +17,6 @@ import {
 import { discoverTestFiles } from '../file-discovery/test-file-discovery';
 import { attemptAndValidateTransformation, MAX_ATTEMPTS } from '../llm-transformations/attempt-and-validate-transformation';
 import ora from 'ora';
-import path from 'path';
 import { getRelativePathFromAbsolutePath } from '../ast-transformations/individual-transformations/convert-relative-imports';
 
 // Define the function type for LLM call
@@ -92,7 +94,7 @@ export const convertTestFiles = async ({
         filePaths = await discoverTestFiles(projectRoot, spinner);
     }
 
-    for (const filePath of filePaths.slice(20, 40)) {
+    for (const filePath of filePaths) {
         try {
             // Initialize config
             config = initializeConfig({
@@ -183,7 +185,16 @@ export const convertTestFiles = async ({
                 successRate: 0
             };
             continue;
-        }
+        };
+
+        updateOriginalFileAndRunTests({
+            config,
+            spinner,
+            filePath
+        });
+
+        // Clean up any snapshots after processing each file
+        cleanupSnapshots(config);
 
         // Store the result in the totalResults object
         const filePathClean = `${filePath.replace(/[<>:"/|?*.]+/g, '-')}`;
