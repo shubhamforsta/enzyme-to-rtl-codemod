@@ -60,6 +60,8 @@ const readFileContent = (filePath: string): string | null => {
  * @param {LLMCallFunction} params.llmCallFunction - Function for making LLM API calls to process the tests.
  * @param {string[]} [params.extendInitialPrompt] - Optional additional prompt instructions to include.
  * @param {string[]} [params.additionalReferenceFiles] - Optional array of absolute paths to reference files that might be needed for transformations.
+ * @param {string[]} [params.skipFiles] - Optional array of file paths to skip.
+ * @param {boolean} [params.onlyConvertFullyPassingTests] - Optional flag to only convert tests that are passing.
  * @returns {Promise<SummaryJson>} A promise that resolves to the generated summary JSON object containing the results of the test conversions.
  */
 export const convertTestFiles = async ({
@@ -70,6 +72,8 @@ export const convertTestFiles = async ({
     llmCallFunction,
     extendInitialPrompt,
     additionalReferenceFiles = [],
+    skipFiles = [],
+    onlyConvertFullyPassingTests = false
 }: {
     filePaths?: string[];
     logLevel?: string;
@@ -78,6 +82,8 @@ export const convertTestFiles = async ({
     llmCallFunction: LLMCallFunction;
     extendInitialPrompt?: string[];
     additionalReferenceFiles?: string[];
+    skipFiles?: string[];
+    onlyConvertFullyPassingTests?: boolean;
 }): Promise<SummaryJson> => {
     // Initialize total results object to collect results
     const totalResults: TestResults = {};
@@ -85,6 +91,7 @@ export const convertTestFiles = async ({
         text: 'Starting conversion from Enzyme to RTL',
         color: 'blue',
     }).start();
+    skipFiles = skipFiles.map(filePath => path.resolve(process.cwd(), filePath));
 
     // Initialize config
     let config = {} as Config;
@@ -92,9 +99,16 @@ export const convertTestFiles = async ({
     if (!filePaths || filePaths.length === 0) {
         const projectRoot = process.cwd();
         filePaths = await discoverTestFiles(projectRoot, spinner);
+    } else {
+        filePaths = filePaths.map(filePath => path.resolve(process.cwd(), filePath));
     }
 
     for (const filePath of filePaths) {
+        if (skipFiles.includes(filePath)) {
+            spinner.info(`Skipping file: ${filePath}`);
+            continue;
+        }
+
         try {
             // Initialize config
             config = initializeConfig({
@@ -187,11 +201,17 @@ export const convertTestFiles = async ({
             continue;
         };
 
-        updateOriginalFileAndRunTests({
-            config,
-            spinner,
-            filePath
-        });
+        if ((onlyConvertFullyPassingTests && transformationResult.testPass) || !onlyConvertFullyPassingTests) {
+            spinner.start(`Updating original file and running tests`);
+            updateOriginalFileAndRunTests({
+                config,
+                spinner,
+                filePath
+            });
+            spinner.succeed();
+        } else {
+            spinner.fail(`Skipping file: ${filePath} because it is not passing`);
+        }
 
         // Clean up any snapshots after processing each file
         cleanupSnapshots(config);

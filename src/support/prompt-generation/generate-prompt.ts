@@ -57,7 +57,9 @@ export const generateInitialPrompt = ({
 
     CONVERSION APPROACH:
     - You will have multiple attempts to convert this file. If tests fail in the first attempt, you'll get error messages and can fix your solution.
-    - **First attempt the conversion using only the information provided in the test file and DOM tree - DO NOT request component files for the initial conversion.**
+    - **Be efficient with your approach - solve as much as possible from the test file and DOM tree first.**
+    - **Only request additional files if test failures clearly indicate you need more context about component structure or props.**
+    - **Use helper functions sparingly - you have a limited budget for each type of function call.**
     - **Make sure same testing logic is preserved. snapshot tests should be snapshot tests, user interactions should be user interactions, query based tests should be query based tests.**
 	- *Do not modify anything else, unless it is required for the conversion.*
 	- *Preserve all abstracted functions as they are and use them in the converted file.*
@@ -72,19 +74,21 @@ export const generateInitialPrompt = ({
 	// 5. Ensure all text/strings are converted to lowercase regex expression. Example: screen.getByText(/your text here/i), screen.getByRole('button', {name: /your text here/i}).
 	// 6. When asserting that a DOM renders nothing, replace isEmptyRender()).toBe(true) with toBeEmptyDOMElement() by wrapping the component into a container. Example: expect(container).toBeEmptyDOMElement();.`;
 
-    const availableTools = `\nAvailable tools:
+    const availableTools = `\nAvailable tools (use efficiently and sparingly):
     1. evaluateAndRun - Use this function to submit your converted test file for validation. Each evaluateAndRun call counts as one attempt.
        
        IMPORTANT NOTE ABOUT IMPORTS: You can use absolute imports in your submitted code. Our system will automatically convert absolute imports to appropriate relative imports when saving the file. This makes it easier for you to reuse import paths from example files without having to calculate relative paths.
     
-    2. requestForFile - Use this ONLY when tests are failing and you need to understand how components, utilities or other files work to fix the conversion.
-       Only request files when absolutely necessary to resolve failing tests, not for initial conversion.
-       Using requestForFile does NOT count as an attempt - only evaluateAndRun calls count toward your attempt limit.
+    2. requestForFile - Use this to understand how components, utilities or other files work to improve your conversion.
+       This is especially helpful when you need to understand component structure or props to create accurate RTL queries.
+       You have a STRICTLY LIMITED number of file requests - use them wisely!
        
-       IMPORTANT NOTE ABOUT FILE REQUESTS:
-       - If a file doesn't exist, do NOT keep requesting it, assume the file doesn't exist and work around it.
-       - Focus on making tests pass with the available information. Sometimes you can infer the component structure from the test itself.
-       - Prefer to solve problems without requesting many files, especially when the test failures are clear.
+       IMPORTANT EFFICIENCY GUIDELINES:
+       - Only request files that are directly relevant to fixing failing tests
+       - Prioritize requesting the component file being tested first
+       - If a file doesn't exist, do NOT keep requesting it
+       - Extract maximum value from each file you request
+       - Focus on files that will clearly help fix your test failures
        
        IMPORTANT NOTE ABOUT IMPORTS: The file content you receive will have all relative imports converted to absolute imports for easier reference. You can directly copy these import paths into your code if needed.
        
@@ -101,8 +105,12 @@ export const generateInitialPrompt = ({
        If you need to request more files imported in that file, use the absolute path from the comment as the currentFilePath.
        
     3. requestForReferenceTests - Use this to find existing React Testing Library tests in the codebase that can serve as reference examples.
-       This is helpful if you're unsure about test patterns, conventions, or specific RTL usage in this codebase.
-       This tool will search for RTL tests in nearby directories and return up to 3 examples.
+       You have only ONE opportunity to use this function - make it count!
+       
+       BEST PRACTICES:
+       - Use this when you're unsure about RTL patterns in this specific codebase
+       - Include specific keywords to filter for the most relevant examples
+       - Extract maximum value from the reference tests you receive
        
        IMPORTANT NOTE ABOUT IMPORTS: The reference test examples you receive will have all relative imports converted to absolute imports for easier reference. You can directly copy these import paths into your code if needed.
        
@@ -114,13 +122,13 @@ export const generateInitialPrompt = ({
        Using requestForReferenceTests does NOT count as an attempt.
        
     4. updateComponent - Use this to update a component file to add testing-specific attributes (like data-testid).
-       ONLY use this when it's absolutely necessary and RTL conversion cannot be done without modifying the component.
+       Use this when RTL conversion is challenging due to lack of accessible elements in the component.
+       You have only ONE opportunity to use this function - use it only as a last resort!
        
-       IMPORTANT NOTE ABOUT COMPONENT UPDATES:
-       - This should be used as a last resort when all other approaches have failed
-       - Make MINIMAL changes - only add test-specific attributes like data-testid
+       IMPORTANT GUIDELINES:
+       - Only use this after you've tried all other approaches
+       - Make extremely minimal changes - just add data-testid where absolutely necessary
        - DO NOT modify component logic, functionality, or styling
-       - Any changes made will affect the actual component files in the codebase
        - Provide a clear explanation of why the change is necessary
        
        You can update components in two ways:
@@ -148,11 +156,18 @@ export const generateInitialPrompt = ({
                   .join('\n')
             : '';
 
-    const conclusion = `\nMOST IMPORTANT :: Please call evaluateAndRun function and pass the converted test file. Only Respond with the function call and nothing else, no natural response only function call.
+    const conclusion = `\nIMPORTANT EFFICIENCY WORKFLOW:
+    1. First attempt the conversion using only the information in the test file and DOM tree
+    2. If tests fail, analyze errors carefully and fix basic issues in your approach
+    3. Only request component files when error messages clearly indicate missing elements or incorrect selectors
+    4. Use reference tests only when you're unsure about RTL patterns specific to this codebase
+    5. Consider component updates only as a last resort when all other approaches have failed
+    
+    REMEMBER: You have a strictly limited budget for helper function calls - use them strategically!
+    
+    Please call evaluateAndRun function and pass the converted test file. Only Respond with the function call and nothing else, no natural response only function call.
     
 If your conversion doesn't pass all tests in the first attempt, you'll have multiple chances to fix it. We'll provide test failure details to help you improve your solution with each attempt.
-
-Important: Only evaluateAndRun calls count as attempts. You can use requestForFile as needed to gather information without using up your attempt count.
 
 In final attempt, you have to provide the best conversion possible even if some tests might still fail.`;
 

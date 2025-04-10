@@ -71,36 +71,54 @@ export const runTestAndAnalyze = async ({
     // Create jest run command for the test file
     const rtlRunCommand = `${jestBinaryPath} ${filePath}`;
     testAnalysisLogger.verbose('Run converted tests');
-    const generatedFileRunShellProcess = await runCommand(rtlRunCommand);
+    
+    try {
+        const generatedFileRunShellProcess = await runCommand(rtlRunCommand);
 
-    // Collect test run logs
-    testAnalysisLogger.verbose('Clean output');
-    const testrunLogs = removeANSIEscapeCodes(
-        generatedFileRunShellProcess.output +
-            generatedFileRunShellProcess.stderr,
-    );
-
-    // Analyze logs for errors
-    testAnalysisLogger.verbose('Analyze logs for errors');
-    resultForAttempt.testPass = analyzeLogsForErrors(testrunLogs);
-
-    // Log the results
-    if (!resultForAttempt.testPass) {
-        testAnalysisLogger.verbose('Test failed');
-        testAnalysisLogger.verbose(
-            `Converted RTL file path: ${rtlConvertedFilePath}`,
+        // Collect test run logs
+        testAnalysisLogger.verbose('Clean output');
+        const testrunLogs = removeANSIEscapeCodes(
+            generatedFileRunShellProcess.output +
+                generatedFileRunShellProcess.stderr,
         );
-        logLevel === 'verbose' && fs.writeFileSync(jestRunLogsPath, testrunLogs, 'utf-8');
-        testAnalysisLogger.verbose(`Jest run logs file path: ${jestRunLogsPath}`);
-        testAnalysisLogger.verbose(`See ${outputResultsPath} for more info`);
+
+        // Analyze logs for errors
+        testAnalysisLogger.verbose('Analyze logs for errors');
+        resultForAttempt.testPass = analyzeLogsForErrors(testrunLogs);
+
+        // Log the results
+        if (!resultForAttempt.testPass) {
+            testAnalysisLogger.verbose('Test failed');
+            testAnalysisLogger.verbose(
+                `Converted RTL file path: ${rtlConvertedFilePath}`,
+            );
+            logLevel === 'verbose' && fs.writeFileSync(jestRunLogsPath, testrunLogs, 'utf-8');
+            testAnalysisLogger.verbose(`Jest run logs file path: ${jestRunLogsPath}`);
+            testAnalysisLogger.verbose(`See ${outputResultsPath} for more info`);
+        }
+        const detailedResult = extractTestResults(testrunLogs);
+        // Merge detailedResult into the result object
+        resultForAttempt.failedTests = detailedResult.failedTests;
+        resultForAttempt.passedTests = detailedResult.passedTests;
+        resultForAttempt.totalTests = detailedResult.totalTests;
+        resultForAttempt.successRate = detailedResult.successRate;
+        resultForAttempt.jestRunLogs = testrunLogs;
+    } catch (error) {
+        // Handle errors, especially timeouts
+        testAnalysisLogger.error(`Error running test: ${error instanceof Error ? error.message : String(error)}`);
+        
+        // Set failure info
+        resultForAttempt.testPass = false;
+        resultForAttempt.jestRunLogs = `Error during test execution: ${error instanceof Error ? error.message : String(error)}`;
+        
+        // Log to file for debugging
+        logLevel === 'verbose' && fs.writeFileSync(jestRunLogsPath, resultForAttempt.jestRunLogs, 'utf-8');
+        
+        resultForAttempt.totalTests = 0;
+        resultForAttempt.failedTests = 0;
+        resultForAttempt.passedTests = 0;
+        resultForAttempt.successRate = 0;
     }
-    const detailedResult = extractTestResults(testrunLogs);
-    // Merge detailedResult into the result object
-    resultForAttempt.failedTests = detailedResult.failedTests;
-    resultForAttempt.passedTests = detailedResult.passedTests;
-    resultForAttempt.totalTests = detailedResult.totalTests;
-    resultForAttempt.successRate = detailedResult.successRate;
-    resultForAttempt.jestRunLogs = testrunLogs;
 
     return resultForAttempt;
 };
