@@ -14,6 +14,7 @@ export const promptLogger = createCustomLogger('Prompt');
  * @param {string} params.renderedCompCode - The rendered component DOM tree code.
  * @param {number} params.originalTestCaseNum - The number of test cases in the original file.
  * @param {string[]} [params.extendPrompt] - Optional user-provided additional instructions for the prompt.
+ * @param {boolean} [params.disableUpdateComponent] - Optional flag to disable the updateComponent function.
  * @returns {string} The generated prompt to be sent to the LLM.
  */
 export const generateInitialPrompt = ({
@@ -21,11 +22,13 @@ export const generateInitialPrompt = ({
     renderedCompCode,
     originalTestCaseNum,
     extendPrompt,
+    disableUpdateComponent = false,
 }: {
     filePath: string;
     renderedCompCode: string;
     originalTestCaseNum: number;
     extendPrompt?: string[];
+    disableUpdateComponent?: boolean;
 }): string => {
 
     // Get number of test cases
@@ -119,7 +122,8 @@ export const generateInitialPrompt = ({
        - searchDepth: (Optional) How many directory levels to search (1 = same directory, 2 = parent directory, etc.)
        - keywords: (Optional) An array of specific RTL features you're interested in seeing examples of (e.g., ["userEvent", "waitFor"])
        
-       Using requestForReferenceTests does NOT count as an attempt.
+       Using requestForReferenceTests does NOT count as an attempt.` + 
+       (!disableUpdateComponent ? `
        
     4. updateComponent - Use this to update a component file to add testing-specific attributes (like data-testid).
        Use this when RTL conversion is challenging due to lack of accessible elements in the component.
@@ -144,7 +148,7 @@ export const generateInitialPrompt = ({
        - newContent: The updated component code with test attributes added
        - explanation: Brief explanation of why this change is necessary and what was changed
        
-       Using updateComponent does NOT count as an attempt.`;
+       Using updateComponent does NOT count as an attempt.` : '');
 
     // User additions to the prompt:
     const extendedPromptSection =
@@ -160,8 +164,9 @@ export const generateInitialPrompt = ({
     1. First attempt the conversion using only the information in the test file and DOM tree
     2. If tests fail, analyze errors carefully and fix basic issues in your approach
     3. Only request component files when error messages clearly indicate missing elements or incorrect selectors
-    4. Use reference tests only when you're unsure about RTL patterns specific to this codebase
-    5. Consider component updates only as a last resort when all other approaches have failed
+    4. Use reference tests only when you're unsure about RTL patterns specific to this codebase` + 
+    (!disableUpdateComponent ? `
+    5. Consider component updates only as a last resort when all other approaches have failed` : '') + `
     
     REMEMBER: You have a strictly limited budget for helper function calls - use them strategically!
     

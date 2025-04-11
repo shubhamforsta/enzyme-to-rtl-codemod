@@ -62,6 +62,7 @@ const readFileContent = (filePath: string): string | null => {
  * @param {string[]} [params.additionalReferenceFiles] - Optional array of absolute paths to reference files that might be needed for transformations.
  * @param {string[]} [params.skipFiles] - Optional array of file paths to skip.
  * @param {boolean} [params.onlyConvertFullyPassingTests] - Optional flag to only convert tests that are passing.
+ * @param {boolean} [params.disableUpdateComponent] - Optional flag to disable the updateComponent functionality, preventing any modifications to source components.
  * @returns {Promise<SummaryJson>} A promise that resolves to the generated summary JSON object containing the results of the test conversions.
  */
 export const convertTestFiles = async ({
@@ -73,7 +74,8 @@ export const convertTestFiles = async ({
     extendInitialPrompt,
     additionalReferenceFiles = [],
     skipFiles = [],
-    onlyConvertFullyPassingTests = false
+    onlyConvertFullyPassingTests = false,
+    disableUpdateComponent = false
 }: {
     filePaths?: string[];
     logLevel?: string;
@@ -84,6 +86,7 @@ export const convertTestFiles = async ({
     additionalReferenceFiles?: string[];
     skipFiles?: string[];
     onlyConvertFullyPassingTests?: boolean;
+    disableUpdateComponent?: boolean;
 }): Promise<SummaryJson> => {
     // Initialize total results object to collect results
     const totalResults: TestResults = {};
@@ -146,6 +149,7 @@ export const convertTestFiles = async ({
             renderedCompCode: reactCompDom,
             originalTestCaseNum: config.originalTestCaseNum,
             extendPrompt: extendInitialPrompt,
+            disableUpdateComponent
         });
 
         // Add test file absolute path to initialPrompt
@@ -184,7 +188,8 @@ export const convertTestFiles = async ({
             llmCallFunction,
             initialPrompt: promptWithFilePath,
             spinner,
-            logLevel
+            logLevel,
+            disableUpdateComponent
         });
 
         if (!transformationResult) {

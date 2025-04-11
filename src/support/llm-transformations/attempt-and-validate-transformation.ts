@@ -68,32 +68,17 @@ const remainingAttemptsMessage = (attemptsRemaining: number) => {
     }
 };
 
-const failedTestsTryAgainUserMessage = (attemptCounter: number) => ({
+const failedTestsTryAgainUserMessage = () => ({
     role: 'user',
-    content: attemptCounter <= 2 
-        ? `The React Testing Library code converted from Enzyme tests is failing. 
-        First, carefully analyze the error messages to identify specific issues:
+    content: `The React Testing Library code converted from Enzyme tests is failing. 
+        carefully analyze the error messages to identify specific issues:
         
-        ERROR ANALYSIS CHECKLIST:
-        1. Missing elements: Are there elements you're querying that don't exist in the DOM?
-        2. Incorrect queries: Are you using the right RTL query methods?
-        3. Syntax errors: Are there any JavaScript/TypeScript syntax problems?
-        4. Async issues: Do you need waitFor or findBy queries for asynchronous elements?
-        5. Prop/state issues: Are you correctly handling component props and state?
-        
-        TRY TO FIX WITHOUT REQUESTING FILES FIRST:
-        - Most issues can be solved by adjusting your queries based on test failure messages
-        - Look for element names, roles, or text mentioned in error messages
-        - Check the DOM tree in the original prompt for available elements
-        
-        IF ABSOLUTELY NECESSARY, use requestForFile to examine a component file, but use your limited requests wisely.`
-        : `Your conversions are still failing with the same success rate. 
-        
-        PRIORITY ACTION STEPS:
-        1. Focus on the SPECIFIC errors in the test failures - don't make broad changes
-        2. If you haven't already, use one of your limited requestForFile calls to examine the actual component implementation
-        3. If RTL patterns are unclear, consider using your ONE requestForReferenceTests call
-        4. As a last resort only, consider using your ONE updateComponent call to add a data-testid
+        SUGGESTED ACTION STEPS:
+        1. **IMPORTANT** every project has its own test setups and patterns, consider using your ONE requestForReferenceTests call to get familiar with the project's test setup and patterns.
+        2. You can try adding screen.debug() to one of the tests and submit using evaluateAndRun function, the results will show you the DOM tree and help you identify the issue. 
+        3. Focus on the SPECIFIC errors in the test failures - don't make broad changes
+        4. Use requestForFile to get understanding of any component or file that you think might help you fix the issue. You have limited number of requests for this function, use it wisely.
+        5. As a last resort only, consider using your ONE updateComponent call to add a data-testid 
         
         REMEMBER: You have strict limits on helper function calls, so use them strategically. Always try to fix as much as possible from the error messages before requesting more information.
         
@@ -134,13 +119,15 @@ export const attemptAndValidateTransformation = async ({
     llmCallFunction,
     initialPrompt,
     spinner,
-    logLevel
+    logLevel,
+    disableUpdateComponent = false
 }: {
     config: Config,
     llmCallFunction: LLMCallFunction,
     initialPrompt: string,
     spinner: Ora,
-    logLevel?: string
+    logLevel?: string,
+    disableUpdateComponent?: boolean
 }) => {
     let attemptCounter = 1;
     let previousSuccessRates: number[] = [];
@@ -163,14 +150,14 @@ export const attemptAndValidateTransformation = async ({
     const FUNCTION_CALL_LIMITS = {
         requestForFile: 3,         // Max 3 file requests
         requestForReferenceTests: 1, // Max 1 reference test request
-        updateComponent: 1         // Max 1 component update
+        ...(disableUpdateComponent ? {} : { updateComponent: 1 })         // Max 1 component update
     };
     
     // Add attempt info to the initial prompt
-    const promptWithAttemptInfo = `${initialPrompt}\n\nYou will have up to ${MAX_ATTEMPTS} attempts to successfully convert this test file. Please provide the best conversion possible with each attempt. You are allowed a limited number of helper function calls: ${FUNCTION_CALL_LIMITS.requestForFile} file requests, ${FUNCTION_CALL_LIMITS.requestForReferenceTests} reference test request, and ${FUNCTION_CALL_LIMITS.updateComponent} component update.`;
+    const promptWithAttemptInfo = `${initialPrompt}\n\nYou will have up to ${MAX_ATTEMPTS} attempts to successfully convert this test file. Please provide the best conversion possible with each attempt. You are allowed a limited number of helper function calls: ${FUNCTION_CALL_LIMITS.requestForFile} file requests, ${FUNCTION_CALL_LIMITS.requestForReferenceTests} reference test request${disableUpdateComponent ? '' : `, and ${FUNCTION_CALL_LIMITS.updateComponent} component update`}.`;
     
     const messages: any[] = [{ role: 'system', content: promptWithAttemptInfo }];
-    const tools = getFunctions();
+    const tools = getFunctions(disableUpdateComponent);
     let finalResult: IndividualTestResult | null = null;
     
     // Wrap the LLM call function with logging if in verbose mode
@@ -374,8 +361,23 @@ export const attemptAndValidateTransformation = async ({
                     });
                 }
             } else if (functionName === 'updateComponent') {
+                // Check if updateComponent is disabled
+                if (disableUpdateComponent) {
+                    // Add response indicating feature is disabled
+                    messages.push({
+                        role: 'tool',
+                        tool_call_id: toolCallId,
+                        name: 'updateComponent',
+                        content: JSON.stringify({ 
+                            success: false,
+                            message: 'The updateComponent function is disabled for this conversion. Please work with the existing component structure without modifications.' 
+                        }),
+                    });
+                    continue;
+                }
+                
                 // Check if we've reached the limit for component updates
-                if (functionCallCounts.updateComponent >= FUNCTION_CALL_LIMITS.updateComponent) {
+                if (functionCallCounts.updateComponent >= (FUNCTION_CALL_LIMITS?.updateComponent ?? 0)) {
                     // Add response indicating limit reached
                     messages.push({
                         role: 'tool',
@@ -519,7 +521,7 @@ export const attemptAndValidateTransformation = async ({
                 const unusedFunctions = [];
                 if (!usedFunctions.requestForFile) unusedFunctions.push('requestForFile');
                 if (!usedFunctions.requestForReferenceTests) unusedFunctions.push('requestForReferenceTests');
-                if (!usedFunctions.updateComponent) unusedFunctions.push('updateComponent');
+                if (!usedFunctions.updateComponent && !disableUpdateComponent) unusedFunctions.push('updateComponent');
                 
                 if (attemptCounter >= 3 && unusedFunctions.length > 0) {
                     messages.push({
@@ -537,8 +539,7 @@ export const attemptAndValidateTransformation = async ({
                     }
                 }
                 
-                // Else, ask LLM to try again - use current attemptCounter value (not reduced)
-                messages.push(failedTestsTryAgainUserMessage(attemptCounter));
+                messages.push(failedTestsTryAgainUserMessage());
                 messages.push(remainingAttemptsMessage(attemptsRemaining));
             }
         } else if (toolCalls && toolCalls.length > 0) {

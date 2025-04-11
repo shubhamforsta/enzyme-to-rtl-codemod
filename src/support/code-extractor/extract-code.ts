@@ -12,7 +12,7 @@ const codeExtractorLogger = createCustomLogger('Code Extractor');
  * @param filePath - The target file path where the code will be saved
  * @returns The code with relative imports
  */
-const processCodeImports = (code: string, filePath: string): string => {
+export const processCodeImports = (code: string, filePath: string): string => {
     try {
         if (!code) return code;
         

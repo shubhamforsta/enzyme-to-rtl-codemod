@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { createCustomLogger } from '../../logger/logger';
+import { processCodeImports } from '../../code-extractor/extract-code';
 
 const componentHelperLogger = createCustomLogger('Component Helper');
 
@@ -80,6 +81,8 @@ export const getComponentContent = (absolutePath: string): string | null => {
  * @returns Object with success status and message
  */
 export const updateComponentContent = (absolutePath: string, newContent: string): { success: boolean; message: string } => {
+    const processedContent = processCodeImports(newContent, absolutePath);
+
     try {
         // First check if the file exists
         if (!fs.existsSync(absolutePath)) {
@@ -114,7 +117,7 @@ export const updateComponentContent = (absolutePath: string, newContent: string)
         }
         
         // Write the new content to the file
-        fs.writeFileSync(absolutePath, newContent, 'utf-8');
+        fs.writeFileSync(absolutePath, processedContent, 'utf-8');
         
         componentHelperLogger.info(`Component file updated successfully at: ${absolutePath}`);
         return { 
