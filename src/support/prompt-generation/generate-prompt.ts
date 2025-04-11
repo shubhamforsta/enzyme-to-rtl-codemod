@@ -84,7 +84,6 @@ export const generateInitialPrompt = ({
     
     2. requestForFile - Use this to understand how components, utilities or other files work to improve your conversion.
        This is especially helpful when you need to understand component structure or props to create accurate RTL queries.
-       You have a STRICTLY LIMITED number of file requests - use them wisely!
        
        IMPORTANT EFFICIENCY GUIDELINES:
        - Only request files that are directly relevant to fixing failing tests
@@ -108,7 +107,7 @@ export const generateInitialPrompt = ({
        If you need to request more files imported in that file, use the absolute path from the comment as the currentFilePath.
        
     3. requestForReferenceTests - Use this to find existing React Testing Library tests in the codebase that can serve as reference examples.
-       You have only ONE opportunity to use this function - make it count!
+       MAKE SURE TO USE THIS FUNCTION. It is very important to understand how components are tested in the codebase. so you can take reference and implement solution for the same.
        
        BEST PRACTICES:
        - Use this when you're unsure about RTL patterns in this specific codebase

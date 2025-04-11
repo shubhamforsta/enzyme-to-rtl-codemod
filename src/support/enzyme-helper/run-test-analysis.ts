@@ -12,10 +12,12 @@ export interface IndividualTestResult {
     passedTests: number;
     totalTests: number;
     successRate: number;
+    typeCheckPass: boolean | null;
 }
 
 export interface IndividualResultWithLogs extends IndividualTestResult {
     jestRunLogs: string;
+    typeCheckLogs: string;
 }
 
 export interface TestResults {
@@ -46,6 +48,7 @@ export interface TestResults {
 export const runTestAndAnalyze = async ({
     filePath,
     jestBinaryPath,
+    typeCheckBinaryPath,
     jestRunLogsPath,
     rtlConvertedFilePath,
     outputResultsPath,
@@ -53,6 +56,7 @@ export const runTestAndAnalyze = async ({
 }: {
     filePath: string;
     jestBinaryPath: string;
+    typeCheckBinaryPath: string;
     jestRunLogsPath: string;
     rtlConvertedFilePath: string;
     outputResultsPath: string;
@@ -66,6 +70,8 @@ export const runTestAndAnalyze = async ({
         totalTests: 0,
         successRate: 0,
         jestRunLogs: '',
+        typeCheckLogs: '',
+        typeCheckPass: null
     };
 
     // Create jest run command for the test file
@@ -118,6 +124,23 @@ export const runTestAndAnalyze = async ({
         resultForAttempt.failedTests = 0;
         resultForAttempt.passedTests = 0;
         resultForAttempt.successRate = 0;
+    }
+
+    try {
+        // Type check the file
+        // Ensure filePath is relative to project root, not user's root directory
+        const relativeFilePath = path.relative(process.cwd(), filePath);
+        const typeCheckCommand = `${typeCheckBinaryPath} ${relativeFilePath}`;
+        const generatedFileRunShellProcess = await runCommand(typeCheckCommand);
+        resultForAttempt.typeCheckLogs = removeANSIEscapeCodes(
+            generatedFileRunShellProcess.output +
+                generatedFileRunShellProcess.stderr,
+        );
+        resultForAttempt.typeCheckPass = analyseTypeCheckLogs(resultForAttempt.typeCheckLogs);
+    } catch (error) {
+        testAnalysisLogger.error(`Type check failed for file: ${filePath}`);
+        resultForAttempt.typeCheckLogs = `Error during type check: ${error instanceof Error ? error.message : String(error)}`;
+        resultForAttempt.typeCheckPass = false;
     }
 
     return resultForAttempt;
@@ -228,6 +251,25 @@ export const removeANSIEscapeCodes = (input: string): string => {
     const ansiEscapeCodeRegex = /\u001b\[[0-9;]*m/g;
     // Remove ANSI escape codes from the input string
     return input.replace(ansiEscapeCodeRegex, '');
+};
+
+/**
+ * Analyze type check logs for errors
+ * @param typeCheckLogs
+ * @returns
+ */
+export const analyseTypeCheckLogs = (typeCheckLogs: string): boolean => {
+    testAnalysisLogger.verbose('Start: Analyze type check logs');
+    // Find errors in logs
+    if (
+        typeCheckLogs.includes('error')
+    ) {
+        testAnalysisLogger.verbose('Done: Analyze type check logs');
+        return false;
+    } else {
+        testAnalysisLogger.verbose('Done: Analyze type check logs');
+        return true;
+    }
 };
 
 /**

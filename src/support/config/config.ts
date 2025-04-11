@@ -18,6 +18,7 @@ type LogLevel = keyof typeof winstonConfig.npm.levels;
 export interface Config {
     // Shared
     jestBinaryPath: string;
+    typeCheckBinaryPath: string;
     outputResultsPath: string;
     jsonSummaryPath: string;
     logLevel: LogLevel;
@@ -47,6 +48,7 @@ const config: Config = {} as Config;
 
 interface InitializeSharedConfigArgs {
     jestBinaryPath: string;
+    typeCheckBinaryPath: string;
     logLevel: LogLevel;
     testId: string;
 }
@@ -59,16 +61,19 @@ export const getProjectRootPath = (): string => {
  * Initialize shared config
  * @param {Object} options
  * @param {string} options.jestBinaryPath - The path to the Jest binary.
+ * @param {string} options.typeCheckBinaryPath - The path to the TypeScript binary.
  * @param {string} options.logLevel - The logging level for the test execution.
  * @param {string} options.testId - getByTestAttribute
  *
  */
 export const initializeSharedConfig = ({
     jestBinaryPath,
+    typeCheckBinaryPath,
     logLevel,
     testId,
 }: InitializeSharedConfigArgs): void => {
     config.jestBinaryPath = jestBinaryPath;
+    config.typeCheckBinaryPath = typeCheckBinaryPath;
     config.logLevel = logLevel;
     // Set log level
     configureLogLevel(config.logLevel);
@@ -87,6 +92,7 @@ export const initializeSharedConfig = ({
 interface InitializeConfigArgs {
     filePath: string;
     jestBinaryPath: string;
+    typeCheckBinaryPath: string;
     testId?: string;
     logLevel?: LogLevel;
     spinner: Ora;
@@ -118,6 +124,7 @@ interface InitializeConfigArgs {
 export const initializeConfig = ({
     filePath,
     jestBinaryPath,
+    typeCheckBinaryPath,
     testId = 'data-testid',
     logLevel = 'info',
     spinner
@@ -126,6 +133,7 @@ export const initializeConfig = ({
     if (!config.configInitialized) {
         initializeSharedConfig({
             jestBinaryPath,
+            typeCheckBinaryPath,
             logLevel,
             testId,
         });

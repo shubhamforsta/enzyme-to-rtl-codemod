@@ -68,19 +68,19 @@ const remainingAttemptsMessage = (attemptsRemaining: number) => {
     }
 };
 
-const failedTestsTryAgainUserMessage = () => ({
+const failedTestsTryAgainUserMessage = (typeCheckPass: boolean | null, disabledUpdateComponent: boolean) => ({
     role: 'user',
     content: `The React Testing Library code converted from Enzyme tests is failing. 
         carefully analyze the error messages to identify specific issues:
         
         SUGGESTED ACTION STEPS:
-        1. **IMPORTANT** every project has its own test setups and patterns, consider using your ONE requestForReferenceTests call to get familiar with the project's test setup and patterns.
+        1. **IMPORTANT** every project has its own test setups and patterns, consider using your ONE requestForReferenceTests function call to get familiar with the project's test setup and patterns.
         2. You can try adding screen.debug() to one of the tests and submit using evaluateAndRun function, the results will show you the DOM tree and help you identify the issue. 
         3. Focus on the SPECIFIC errors in the test failures - don't make broad changes
-        4. Use requestForFile to get understanding of any component or file that you think might help you fix the issue. You have limited number of requests for this function, use it wisely.
-        5. As a last resort only, consider using your ONE updateComponent call to add a data-testid 
+        4. Use requestForFile function to get understanding of any component or file that you think might help you fix the issue. You have limited number of requests for this function, use it wisely.
+        ${disabledUpdateComponent ? '' : '5. As a last resort only, consider using your ONE updateComponent call to add a data-testid'} 
         
-        REMEMBER: You have strict limits on helper function calls, so use them strategically. Always try to fix as much as possible from the error messages before requesting more information.
+        ${typeCheckPass === null ? '' : typeCheckPass ? '': 'Type check is failing, fix the type errors as well. dont create new types but try to use requestForFile to get type info and fix the issue'}
         
         Fix all identified issues and call evaluateAndRun function with corrected version that passes all tests. Remember to maintain the same test structure and number of test cases while fixing the issues.`
 });
@@ -487,18 +487,22 @@ export const attemptAndValidateTransformation = async ({
 
                 // Run the file and analyze the failures
                 spinner.start('Running converted file and analyzing failures');
-                const { jestRunLogs, testPass, ...restSummary } = await runTestAndAnalyze({
+                const { jestRunLogs, typeCheckLogs, testPass, typeCheckPass, ...restSummary } = await runTestAndAnalyze({
                     filePath: convertedFilePath,
                     jestBinaryPath: config.jestBinaryPath,
+                    typeCheckBinaryPath: config.typeCheckBinaryPath,
                     jestRunLogsPath: config.jestRunLogsFilePath,
                     rtlConvertedFilePath: config.rtlConvertedFilePath,
                     outputResultsPath: config.outputResultsPath,
                     logLevel
                 });
                 spinner[testPass ? 'succeed' : 'fail'](`Detailed result: ${JSON.stringify(restSummary)}`);
+                if(testPass && !typeCheckPass) {
+                    spinner.fail('Test passed but type check failed');
+                }
 
                 // update the result to return
-                finalResult = { testPass, ...restSummary };
+                finalResult = { testPass, typeCheckPass, ...restSummary };
                 previousSuccessRates.push(finalResult?.successRate || 0);
 
                 // Add the test run result to messages
@@ -506,14 +510,17 @@ export const attemptAndValidateTransformation = async ({
                     role: 'tool',
                     tool_call_id: toolCallId,
                     name: 'evaluateAndRun',
-                    content: jestRunLogs,
+                    content: JSON.stringify({
+                        jestRunLogs,
+                        typeCheckLogs,
+                    }),
                 });
             }
         }
 
         // After processing all tool calls, determine the next step
         if (hasEvaluateAndRunCall) {
-            if (finalResult && finalResult.testPass) {
+            if (finalResult && finalResult.testPass && finalResult.typeCheckPass) {
                 // If we had a successful evaluateAndRun, we're done
                 break;
             } else {
@@ -539,7 +546,7 @@ export const attemptAndValidateTransformation = async ({
                     }
                 }
                 
-                messages.push(failedTestsTryAgainUserMessage());
+                messages.push(failedTestsTryAgainUserMessage(finalResult?.typeCheckPass || null, disableUpdateComponent));
                 messages.push(remainingAttemptsMessage(attemptsRemaining));
             }
         } else if (toolCalls && toolCalls.length > 0) {

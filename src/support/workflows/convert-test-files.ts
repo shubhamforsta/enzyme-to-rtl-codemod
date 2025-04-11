@@ -56,6 +56,7 @@ const readFileContent = (filePath: string): string | null => {
  * @param {string[]} params.filePaths - The array of test file paths to be processed.
  * @param {string} [params.logLevel] - Optional log level to control verbosity of logs. 'info' or 'verbose'
  * @param {string} params.jestBinaryPath - Path to the Jest binary for running tests.
+ * @param {string} params.typeCheckBinaryPath - Path to the TypeScript binary for type checking.
  * @param {string} params.testId - Optional identifier getByTestId(testId) queries.
  * @param {LLMCallFunction} params.llmCallFunction - Function for making LLM API calls to process the tests.
  * @param {string[]} [params.extendInitialPrompt] - Optional additional prompt instructions to include.
@@ -69,6 +70,7 @@ export const convertTestFiles = async ({
     filePaths,
     logLevel,
     jestBinaryPath,
+    typeCheckBinaryPath,
     testId = 'data-testid',
     llmCallFunction,
     extendInitialPrompt,
@@ -80,6 +82,7 @@ export const convertTestFiles = async ({
     filePaths?: string[];
     logLevel?: string;
     jestBinaryPath: string;
+    typeCheckBinaryPath: string;
     testId?: string;
     llmCallFunction: LLMCallFunction;
     extendInitialPrompt?: string[];
@@ -118,6 +121,7 @@ export const convertTestFiles = async ({
                 filePath,
                 logLevel,
                 jestBinaryPath,
+                typeCheckBinaryPath,
                 testId,
                 spinner
             });
@@ -201,7 +205,8 @@ export const convertTestFiles = async ({
                 failedTests: 0,
                 passedTests: 0,
                 totalTests: 0,
-                successRate: 0
+                successRate: 0,
+                typeCheckPass: null
             };
             continue;
         };

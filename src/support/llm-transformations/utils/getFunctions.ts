@@ -28,7 +28,9 @@ export const getFunctions = (disableUpdateComponent = false) => {
         type: 'function',
         function: {
             name: 'requestForReferenceTests',
-            description: 'Searches for existing React Testing Library tests in nearby directories that can be used as reference for understanding patterns and conventions in the codebase. Note: The reference test examples you receive will have all relative imports converted to absolute imports for easier reference. You can directly copy these import paths into your code if needed.',
+            description: `Very Important Function that Searches for existing React Testing Library tests in nearby directories that can be used as reference for understanding patterns and conventions in the codebase. 
+            I highly recommend using this function to get familiar with the project's test setup and patterns.
+            Note: The reference test examples you receive will have all relative imports converted to absolute imports for easier reference. You can directly copy these import paths into your code if needed.`,
             parameters: {
                 type: 'object',
                 properties: {
@@ -56,7 +58,7 @@ export const getFunctions = (disableUpdateComponent = false) => {
         type: 'function',
         function: {
             name: 'evaluateAndRun',
-            description: 'Evaluates and runs the converted React Testing Library test file. This function will take your converted code, save it to a file, and run Jest tests on it to validate that the conversion was successful. You must use this function to submit your final converted code. Note: You can use absolute imports in your code - they will be automatically converted to appropriate relative imports when saved.',
+            description: 'Evaluates and runs the converted React Testing Library test file. This function will take your converted code, save it to a file, and run Jest tests and type check on it to validate that the conversion was successful. You must use this function to submit your final converted code. Note: You can use absolute imports in your code - they will be automatically converted to appropriate relative imports when saved.',
             parameters: {
                 type: 'object',
                 properties: {
