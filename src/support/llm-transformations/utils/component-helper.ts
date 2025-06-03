@@ -18,6 +18,11 @@ export const getFileFromRelativeImports = (
     componentHelperLogger.verbose(`Resolving relative path: ${relativePath} from file: ${sourceFilePath}`);
     
     const rootFolder = process.cwd();
+    const pathRelativeToRoot = path.relative(rootFolder, relativePath);
+    if(fs.existsSync(path.resolve(rootFolder, pathRelativeToRoot))) {
+        componentHelperLogger.verbose(`Resolved absolute path: ${path.resolve(rootFolder, pathRelativeToRoot)}`);
+        return path.resolve(rootFolder, pathRelativeToRoot);
+    }
     const absoluteBasePath = path.resolve(rootFolder, sourceFilePath);
     const absoluteSrcDir = path.dirname(absoluteBasePath);
     const absoluteComponentPath = path.resolve(absoluteSrcDir, relativePath);

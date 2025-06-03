@@ -75,7 +75,7 @@ export const runTestAndAnalyze = async ({
     };
 
     // Create jest run command for the test file
-    const rtlRunCommand = `${jestBinaryPath} ${filePath}`;
+    const rtlRunCommand = `${jestBinaryPath} ${filePath} --verbose --silent`;
     testAnalysisLogger.verbose('Run converted tests');
     
     try {

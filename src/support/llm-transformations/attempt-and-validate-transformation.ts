@@ -60,30 +60,51 @@ const withLogging = (
 };
 
 const remainingAttemptsMessage = (attemptsRemaining: number) => {
-    return {
-        role: 'user',
-        content: attemptsRemaining > 1 
-            ? `You have ${attemptsRemaining} attempts remaining to fix these issues.` 
-            : `THIS IS YOUR FINAL ATTEMPT! Please provide your best conversion even if some tests might still fail.`
-    }
+    return attemptsRemaining > 1 
+        ? `You have ${attemptsRemaining} attempts remaining to fix these issues.` 
+        : `THIS IS YOUR FINAL ATTEMPT! Please provide your best conversion even if some tests might still fail.`
 };
 
-const failedTestsTryAgainUserMessage = (typeCheckPass: boolean | null, disabledUpdateComponent: boolean) => ({
-    role: 'user',
-    content: `The React Testing Library code converted from Enzyme tests is failing. 
-        carefully analyze the error messages to identify specific issues:
-        
-        SUGGESTED ACTION STEPS:
-        1. **IMPORTANT** every project has its own test setups and patterns, consider using your ONE requestForReferenceTests function call to get familiar with the project's test setup and patterns.
-        2. You can try adding screen.debug() to one of the tests and submit using evaluateAndRun function, the results will show you the DOM tree and help you identify the issue. 
-        3. Focus on the SPECIFIC errors in the test failures - don't make broad changes
-        4. Use requestForFile function to get understanding of any component or file that you think might help you fix the issue. You have limited number of requests for this function, use it wisely.
-        ${disabledUpdateComponent ? '' : '5. As a last resort only, consider using your ONE updateComponent call to add a data-testid'} 
-        
-        ${typeCheckPass === null ? '' : typeCheckPass ? '': 'Type check is failing, fix the type errors as well. dont create new types but try to use requestForFile to get type info and fix the issue'}
-        
-        Fix all identified issues and call evaluateAndRun function with corrected version that passes all tests. Remember to maintain the same test structure and number of test cases while fixing the issues.`
-});
+const failedTestsTryAgainUserMessage = (attemptCounter: number, attemptsRemaining: number, unusedFunctions: string[], testPass: boolean | null, typeCheckPass: boolean | null, disabledUpdateComponent: boolean) => {
+    // If we're past attempt #2 and LLM hasn't used the helper functions, force them to use them
+    if (attemptCounter > 2 && unusedFunctions.length > 0) {
+        return {
+            role: 'user',
+            content: `The React Testing Library code converted from Enzyme tests is still failing.
+                
+                IMPORTANT: You need to better understand the project before making more attempts.
+                
+                REQUIRED ACTIONS:
+                ${unusedFunctions.includes('requestForReferenceTests') ? '- Use requestForReferenceTests function to get familiar with the project\'s test setup and patterns.' : ''}
+                ${unusedFunctions.includes('requestForFile') ? '- Use requestForFile function to examine any component or file that might help you understand the failing tests.' : ''}
+                
+                Do NOT attempt to fix the code yet. First, gather information using these functions to understand the testing patterns.
+                
+                After using these helper functions, you'll receive a new opportunity to fix the tests.
+                
+                ${remainingAttemptsMessage(attemptsRemaining)}`
+        };
+    }
+    
+    return {
+        role: 'user',
+        content: `The React Testing Library code converted from Enzyme tests is failing. 
+            carefully analyze the error messages to identify specific issues:
+            
+            SUGGESTED ACTION STEPS:
+            1. **IMPORTANT** every project has its own test setups and patterns, consider using your ONE requestForReferenceTests function call to get familiar with the project's test setup and patterns.
+            2. You can try adding screen.debug() to one of the tests and submit using evaluateAndRun function, the results will show you the DOM tree and help you identify the issue. 
+            3. Focus on the SPECIFIC errors in the test failures - don't make broad changes
+            4. Use requestForFile function to get understanding of any component or file that you think might help you fix the issue. You have limited number of requests for this function, use it wisely.
+            ${disabledUpdateComponent ? '' : '5. As a last resort only, consider using your ONE updateComponent call to add a data-testid'} 
+            
+            ${typeCheckPass === null ? '' : typeCheckPass ? '': 'Type check is failing, fix the type errors as well. dont create new types but try to use requestForFile to get type info and fix the issue'}
+            
+            Fix all identified issues and call evaluateAndRun function with corrected version that passes all tests. Remember to maintain the same test structure and number of test cases while fixing the issues.
+            
+            ${remainingAttemptsMessage(attemptsRemaining)}`
+    };
+};
 
 const failedToCallFunctionUserMessage = {
     role: 'user',
@@ -136,14 +157,14 @@ export const attemptAndValidateTransformation = async ({
     const functionCallCounts = {
         requestForFile: 0,
         requestForReferenceTests: 0,
-        updateComponent: 0
+        ...(disableUpdateComponent ? {} : { updateComponent: 0 })
     };
     
     // Track which helper functions have been used
     const usedFunctions = {
         requestForFile: false,
         requestForReferenceTests: false,
-        updateComponent: false
+        ...(disableUpdateComponent ? {} : { updateComponent: false })
     };
     
     // Set limits for function calls
@@ -157,7 +178,12 @@ export const attemptAndValidateTransformation = async ({
     const promptWithAttemptInfo = `${initialPrompt}\n\nYou will have up to ${MAX_ATTEMPTS} attempts to successfully convert this test file. Please provide the best conversion possible with each attempt. You are allowed a limited number of helper function calls: ${FUNCTION_CALL_LIMITS.requestForFile} file requests, ${FUNCTION_CALL_LIMITS.requestForReferenceTests} reference test request${disableUpdateComponent ? '' : `, and ${FUNCTION_CALL_LIMITS.updateComponent} component update`}.`;
     
     const messages: any[] = [{ role: 'system', content: promptWithAttemptInfo }];
-    const tools = getFunctions(disableUpdateComponent);
+    const tools = getFunctions(disableUpdateComponent).filter(tool => {
+        if(attemptCounter > 2 && finalResult?.testPass === false && Object.values(usedFunctions).some(value => !value) && tool.function.name === 'evaluateAndRun') {
+            return false;
+        }
+        return true;
+    });
     let finalResult: IndividualTestResult | null = null;
     
     // Wrap the LLM call function with logging if in verbose mode
@@ -377,7 +403,7 @@ export const attemptAndValidateTransformation = async ({
                 }
                 
                 // Check if we've reached the limit for component updates
-                if (functionCallCounts.updateComponent >= (FUNCTION_CALL_LIMITS?.updateComponent ?? 0)) {
+                if ((functionCallCounts?.updateComponent ?? 0) >= (FUNCTION_CALL_LIMITS?.updateComponent ?? 0)) {
                     // Add response indicating limit reached
                     messages.push({
                         role: 'tool',
@@ -391,7 +417,7 @@ export const attemptAndValidateTransformation = async ({
                     continue;
                 }
                 
-                functionCallCounts.updateComponent++;
+                functionCallCounts.updateComponent = (functionCallCounts?.updateComponent ?? 0) + 1;
                 usedFunctions.updateComponent = true;
                 llmCallandTransformLogger.verbose('LLM requested component update');
                 spinner.start('Processing component update request');
@@ -530,24 +556,16 @@ export const attemptAndValidateTransformation = async ({
                 if (!usedFunctions.requestForReferenceTests) unusedFunctions.push('requestForReferenceTests');
                 if (!usedFunctions.updateComponent && !disableUpdateComponent) unusedFunctions.push('updateComponent');
                 
-                if (attemptCounter >= 3 && unusedFunctions.length > 0) {
-                    messages.push({
-                        role: 'user',
-                        content: `You haven't tried using ${unusedFunctions.join(', ')} yet. These functions might help you better understand the components and tests. Consider using them to improve your conversion.`
-                    });
-                }
-                
                 // Check if we should break due to lack of improvement
-                if(attemptCounter > 3) {
+                if(attemptCounter > 4) {
                     if(previousSuccessRates[previousSuccessRates.length - 1] === previousSuccessRates[previousSuccessRates.length - 2] && 
                        previousSuccessRates[previousSuccessRates.length - 2] === previousSuccessRates[previousSuccessRates.length - 3]) {
-                        spinner.fail('No improvement in success rate after 3 attempts with identical results, breaking');
+                        spinner.fail('No improvement in success rate after 4 attempts with identical results, breaking');
                         break;
                     }
                 }
                 
-                messages.push(failedTestsTryAgainUserMessage(finalResult?.typeCheckPass || null, disableUpdateComponent));
-                messages.push(remainingAttemptsMessage(attemptsRemaining));
+                messages.push(failedTestsTryAgainUserMessage(attemptCounter, attemptsRemaining, unusedFunctions, finalResult?.testPass || null, finalResult?.typeCheckPass || null, disableUpdateComponent));
             }
         } else if (toolCalls && toolCalls.length > 0) {
             // We had tool calls but no evaluateAndRun, continue to get the next response
